@@ -46,13 +46,13 @@ void Layer::set_dA(const Matrix& g) { dA = g; }
 const Matrix& Layer::get_dZ() const { return dZ; }
 void Layer::set_dZ(const Matrix& g) { dZ = g; }
 
-void Layer::step(double learning_rate)
+void Layer::step(double lr, double beta)
 {
-    vW = (vW * 0.9) - (dW * learning_rate);
-    vb = (vb * 0.9) - (db * learning_rate);
+    vW = (vW * beta) + (dW * (1 - beta));
+    vb = (vb * beta) + (db * (1 - beta));
 
-    W += vW;
-    b += vb;
+    W -= vW * lr;
+    b -= vb * lr;
 }
 
 // Hidden Layer

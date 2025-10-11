@@ -18,7 +18,7 @@ int main() {
     outputs.push_back(0);
     
     Dataset dataset(inputs, outputs);
-    Network network({2, 2, 2}, InitType::He, 0.1);
+    Network network({2, 2, 2}, InitType::He, 0.01);
     
     std::cout << "Starting training..." << std::endl;
     network.train(dataset, 100);

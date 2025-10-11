@@ -53,7 +53,7 @@ class Layer
         virtual void forward() = 0;
         virtual void backprop() = 0;
 
-        void step(double learning_rate);
+        void step(double lr, double beta);
 };
 
 class HiddenLayer final : public Layer

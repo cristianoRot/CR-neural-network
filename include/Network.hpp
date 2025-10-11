@@ -34,6 +34,8 @@ class Network
         void backprop(size_t label);
         void step(double learning_rate);
 
+        double lr_step_decay(int epoch, double lr0, int drop_every, double gamma);
+
         void loss_gradient(size_t label);
 
         void compute_accuracy(const Matrix& prediction, size_t label);
