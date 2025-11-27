@@ -77,9 +77,10 @@ void Network::train(Dataset& dataset, size_t epochs)
         }
 
         print_accuracy();
+        
+        lr_reduce_on_plateau();
+        
         reset_accuracy();
-
-        learning_rate = lr_step_decay(epoch, 0.01, 20, 0.5);
     }
 }
 
@@ -125,10 +126,29 @@ void Network::step(double learning_rate)
     output_layer->step(learning_rate, 0.9);
 }
 
-double Network::lr_step_decay(int epoch, double lr0, int drop_every, double gamma) {
-    int k = epoch / drop_every;
-    double g = 1.0; while (k--) g *= gamma;
-    return lr0 * g;
+void Network::lr_reduce_on_plateau()
+{
+    if (accuracy > best_accuracy + min_delta)
+    {
+        best_accuracy = accuracy;
+        patience_counter = 0;
+        return;
+    }
+
+    patience_counter++;
+    
+    if (patience_counter >= patience)
+    {
+        double new_lr = learning_rate * factor;
+        
+        if (new_lr >= min_lr)
+        {
+            learning_rate = new_lr;            
+            best_accuracy = accuracy;
+        }
+        
+        patience_counter = 0;
+    }
 }
 
 void Network::compute_accuracy(const Matrix& prediction, size_t label)

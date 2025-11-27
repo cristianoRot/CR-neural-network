@@ -166,18 +166,35 @@ Matrix Matrix::drelu() const
 
 Matrix Matrix::softmax() const
 {
-    Matrix softmax = Matrix(row, col);
-    
-    double den = 0;
+    Matrix softmax(row, col);
 
-    for (size_t i = 0; i < row * col; i++)
+    for (size_t c = 0; c < col; ++c)
     {
-        den += exp(data[i]);
-    }
+        // 1) max nella colonna c
+        double max_val = data[c];
+        for (size_t r = 1; r < row; ++r)
+        {
+            double v = data[r * col + c];
+            if (v > max_val) max_val = v;
+        }
 
-    for (size_t i = 0; i < row * col; i++)
-    {
-        softmax.data[i] = exp(data[i]) / den;
+        // 2) exp(x - max) e somma
+        double sum = 0.0;
+        for (size_t r = 0; r < row; ++r)
+        {
+            double e = std::exp(data[r * col + c] - max_val);
+            softmax.data[r * col + c] = e;
+            sum += e;
+        }
+
+        // 3) normalizzazione
+        if (sum != 0.0)
+        {
+            for (size_t r = 0; r < row; ++r)
+            {
+                softmax.data[r * col + c] /= sum;
+            }
+        }
     }
 
     return softmax;

@@ -19,6 +19,14 @@ class Network
 
         double learning_rate;
         double accuracy = 0.0;
+        
+        // Learning rate reduction on plateau
+        double best_accuracy = 0.0;
+        size_t patience_counter = 0;
+        size_t patience = 20;
+        double factor = 0.7;
+        double min_lr = 1e-6;
+        double min_delta = 0.001;
 
         size_t correct_predictions = 0;
         size_t total_predictions = 0;
@@ -34,7 +42,7 @@ class Network
         void backprop(size_t label);
         void step(double learning_rate);
 
-        double lr_step_decay(int epoch, double lr0, int drop_every, double gamma);
+        void lr_reduce_on_plateau();
 
         void loss_gradient(size_t label);
 
