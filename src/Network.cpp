@@ -58,7 +58,7 @@ const Matrix& Network::get_output() const { return output_layer->getA(); }
 
 void Network::train(Dataset& dataset, size_t epochs)
 {
-    for (size_t epoch = 0; epoch < epochs; epoch++)
+    for (size_t epoch = 0; epoch <= epochs; epoch++)
     {
         dataset.shuffle();
 
