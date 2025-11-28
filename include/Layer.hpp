@@ -1,14 +1,8 @@
 // layer.hpp
 
 #pragma once
+#include "Functions.hpp"
 #include "Matrix.hpp"
-#include "InitType.hpp"
-
-enum class Activation {
-    None,
-    ReLU,
-    Softmax
-};
 
 class Layer
 {
@@ -33,10 +27,11 @@ class Layer
         Matrix* prev_dA;
         
     public:
-        Layer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix* prev_dA);
+        Layer(size_t input_size, size_t output_size);
         ~Layer() = default;
 
         void init_weights(InitType init_type);
+        void connect_prev(const Layer& prev);
 
         // Getters
         const Matrix& getA() const;
@@ -56,10 +51,19 @@ class Layer
         void step(double lr, double beta);
 };
 
+class InputLayer final : public Layer
+{
+    public:
+        InputLayer(size_t input_size, size_t output_size);
+
+        void forward() override;
+        void backprop() override;
+};
+
 class HiddenLayer final : public Layer
 {
     public:
-        HiddenLayer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix* prev_dA);
+        HiddenLayer(size_t input_size, size_t output_size);
 
         void forward() override;
         void backprop() override;
@@ -68,7 +72,7 @@ class HiddenLayer final : public Layer
 class OutputLayer : public Layer
 {
     public:
-        OutputLayer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix* prev_dA);
+        OutputLayer(size_t input_size, size_t output_size);
 
         void forward() override;
         void backprop() override;

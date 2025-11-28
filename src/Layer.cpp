@@ -1,12 +1,13 @@
 // layer.cpp
 
+#include "Functions.hpp"
 #include "Layer.hpp"
 #include <random>
 #include <cmath>
 
 // Constructor
 
-Layer::Layer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix* prev_dA) :
+Layer::Layer(size_t input_size, size_t output_size) :
     input_size(input_size),
     output_size(output_size),
 
@@ -21,23 +22,24 @@ Layer::Layer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix
     dZ(output_size, 1),
 
     vW(output_size, input_size),
-    vb(output_size, 1),
-
-    prev_A(prev_A),
-    prev_dA(prev_dA)
+    vb(output_size, 1)
 { }
 
-HiddenLayer::HiddenLayer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix* prev_dA) :
-    Layer(input_size, output_size, prev_A, prev_dA) { }
+InputLayer::InputLayer(size_t input_size, size_t output_size) :
+    Layer(input_size, output_size) { }
 
-OutputLayer::OutputLayer(size_t input_size, size_t output_size, const Matrix* prev_A, Matrix* prev_dA) :
-    Layer(input_size, output_size, prev_A, prev_dA) { }
+HiddenLayer::HiddenLayer(size_t input_size, size_t output_size) :
+    Layer(input_size, output_size) { }
+
+OutputLayer::OutputLayer(size_t input_size, size_t output_size) :
+    Layer(input_size, output_size) { }
 
 // Getters and Setters
 
 const Matrix& Layer::getA() const { return A; }
-Matrix& Layer::getA() { return A; }
 const Matrix& Layer::get_dA() const { return dA; }
+
+Matrix& Layer::getA() { return A; }
 Matrix& Layer::get_dA() { return dA; }
 
 void Layer::setA(const Matrix& g) { A = g; }
@@ -54,6 +56,20 @@ void Layer::step(double lr, double beta)
     W -= vW * lr;
     b -= vb * lr;
 }
+
+// Connectors
+
+void Layer::connect_prev(const Layer& prev)
+{
+    prev_A = &prev.getA();
+    prev_dA = const_cast<Matrix*>(&prev.get_dA());
+}
+
+// Input Layer
+
+void InputLayer::forward() { }
+
+void InputLayer::backprop() { }
 
 // Hidden Layer
 

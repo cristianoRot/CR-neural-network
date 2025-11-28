@@ -3,41 +3,31 @@
 #include "Network.hpp"
 
 Network::Network(std::vector<size_t> layer_sizes, InitType init_type, double learning_rate)
+    : input_layer(layer_sizes[0], layer_sizes[0]),
+      learning_rate(learning_rate),
+      accumulated_loss(0.0)
 {
     if (layer_sizes.size() < 2)
     {
         throw std::invalid_argument("Error: Network must have at least 2 layers");
     }
 
-    this->learning_rate = learning_rate;
-
-    input_layer = Matrix(layer_sizes[0], 1);
-
-    const Matrix* prev_A = &input_layer;
-    Matrix* prev_dA = nullptr;
-
     layers.reserve(layer_sizes.size() - 2);
+
+    Layer& prev_layer = input_layer;
     
     for (size_t i = 1; i < layer_sizes.size() - 1; i++)
     {
-        layers.push_back(HiddenLayer(layer_sizes[i - 1], 
-                                    layer_sizes[i],
-                                    prev_A,
-                                    prev_dA));
+        layers.push_back(HiddenLayer(layer_sizes[i - 1], layer_sizes[i]));
 
-        HiddenLayer& last_layer = layers.back();
-        
-        prev_A = &last_layer.getA();
-        prev_dA = &last_layer.get_dA();
+        layers.back().connect_prev(prev_layer);
+        prev_layer = layers.back();
     }
 
     size_t vector_size = layer_sizes.size();
-    output_layer = std::make_unique<OutputLayer>(
-        layer_sizes[vector_size - 2],
-        layer_sizes[vector_size - 1],
-        prev_A,
-        prev_dA
-    );
+    
+    output_layer = std::make_unique<OutputLayer>(layer_sizes[vector_size - 2], layer_sizes[vector_size - 1]);
+    output_layer->connect_prev(prev_layer);
 
     init_weights(init_type);
 }
@@ -69,24 +59,24 @@ void Network::train(Dataset& dataset, size_t epochs)
             forward(dataset.get_input(i));
 
             size_t label = dataset.get_output(i);
-
-            compute_accuracy(output_layer->getA(), label);
+            Matrix& pred = output_layer->getA();
+            
+            compute_accuracy(pred, label);
 
             backprop(label);
             step(learning_rate);
         }
 
-        print_accuracy();
-        
+        print_accuracy(); 
         lr_reduce_on_plateau();
         
-        reset_accuracy();
+        reset_epoch_metrics();
     }
 }
 
 void Network::forward(const Matrix& input)
 {
-    input_layer = input; // Set input layer
+    input_layer.setA(input);
 
     for (size_t i = 0; i < layers.size(); i++)
     {
@@ -114,6 +104,11 @@ void Network::loss_gradient(size_t label)
 
     dZ.set(label, 0, v - 1.0);
     output_layer->set_dZ(dZ);
+}
+
+void Network::accumulate_loss(const Matrix& prediction, size_t label)
+{
+
 }
 
 void Network::step(double learning_rate)
@@ -160,9 +155,10 @@ void Network::compute_accuracy(const Matrix& prediction, size_t label)
     total_predictions++;
 }
 
-void Network::reset_accuracy()
+void Network::reset_epoch_metrics()
 {
     correct_predictions = 0;
+    accumulated_loss = 0.0;
     total_predictions = 0;
 }
 

@@ -1,23 +1,23 @@
 // network.hpp
 
 #pragma once
+#include "Functions.hpp"
 #include "Layer.hpp"
 #include "Matrix.hpp"
 #include "Dataset.hpp"
-#include "InitType.hpp"
 #include <vector>
 #include <tuple>
 #include <memory>
 
-
 class Network 
 {
     private:
-        Matrix input_layer;
+        InputLayer input_layer;
         std::vector<HiddenLayer> layers;
         std::unique_ptr<OutputLayer> output_layer;
 
         double learning_rate;
+        double accumulated_loss = 0.0;
         double accuracy = 0.0;
         
         // Learning rate reduction on plateau
@@ -45,9 +45,10 @@ class Network
         void lr_reduce_on_plateau();
 
         void loss_gradient(size_t label);
+        void accumulate_loss(const Matrix& prediction, size_t label);
 
         void compute_accuracy(const Matrix& prediction, size_t label);
-        void reset_accuracy();
+        void reset_epoch_metrics();
         void print_accuracy();
 
         size_t argmax(const Matrix& prediction);
