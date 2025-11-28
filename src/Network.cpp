@@ -57,14 +57,6 @@ void Network::train(Dataset& dataset, size_t epochs)
 
             backprop(label);
             step(learning_rate);
-            
-            // Progress indicator
-            if ((i + 1) % 1000 == 0 || (i + 1) == dataset.size())
-            {
-                std::cout << "\rEpoch " << epoch << "/" << epochs << " - Progress: " 
-                          << (i + 1) << "/" << dataset.size() << " (" 
-                          << ((i + 1) * 100 / dataset.size()) << "%)" << std::flush;
-            }
         }
 
         std::cout << std::endl;
