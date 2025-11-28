@@ -27,7 +27,7 @@ class Network
         double min_delta = 0.001;
 
         size_t correct_predictions = 0;
-        size_t total_predictions = 0;
+        size_t dataset_size = 0;
 
     public:
         Network(std::vector<Layer> layers, InitType init_type, double learning_rate);

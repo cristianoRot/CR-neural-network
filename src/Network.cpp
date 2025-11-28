@@ -34,11 +34,17 @@ const Matrix& Network::get_output() const { return layers.back().getA(); }
 
 void Network::train(Dataset& dataset, size_t epochs)
 {
+    dataset_size = dataset.size();
+    
+    std::cout << "Starting training..." << std::endl;
+    std::cout << "Dataset size: " << dataset_size << " examples" << std::endl;
+    std::cout << "Total iterations: " << (epochs + 1) * dataset_size << std::endl;
+
     for (size_t epoch = 0; epoch <= epochs; epoch++)
     {
         dataset.shuffle();
 
-        std::cout << "Epoch " << epoch << "..." << std::endl;
+        std::cout << "Epoch " << epoch << "/" << epochs << " (" << dataset.size() << " examples)..." << std::flush;
 
         for (size_t i = 0; i < dataset.size(); i++)
         {
@@ -51,13 +57,24 @@ void Network::train(Dataset& dataset, size_t epochs)
 
             backprop(label);
             step(learning_rate);
+            
+            // Progress indicator
+            if ((i + 1) % 1000 == 0 || (i + 1) == dataset.size())
+            {
+                std::cout << "\rEpoch " << epoch << "/" << epochs << " - Progress: " 
+                          << (i + 1) << "/" << dataset.size() << " (" 
+                          << ((i + 1) * 100 / dataset.size()) << "%)" << std::flush;
+            }
         }
 
+        std::cout << std::endl;
         print_accuracy(); 
         lr_reduce_on_plateau();
         
         reset_epoch_metrics();
     }
+
+    std::cout << "Training completed!" << std::endl;
 }
 
 void Network::forward(const Matrix& input)
@@ -132,20 +149,17 @@ void Network::compute_accuracy(const Matrix& prediction, size_t label)
     size_t argmax = Network::argmax(prediction);
 
     if (argmax == label) correct_predictions++;
-    
-    total_predictions++;
 }
 
 void Network::reset_epoch_metrics()
 {
     correct_predictions = 0;
     accumulated_loss = 0.0;
-    total_predictions = 0;
 }
 
 void Network::print_accuracy()
 {
-    accuracy = static_cast<double>(correct_predictions) / total_predictions;
+    accuracy = static_cast<double>(correct_predictions) / dataset_size;
     
     std::cout << "Accuracy: " << accuracy << std::endl;
 }

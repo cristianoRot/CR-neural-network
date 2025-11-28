@@ -5,20 +5,19 @@
 #include <vector>
 
 int main() {
-    Dataset dataset = Dataset::from_csv("data/iris.csv", {"sepal_length","sepal_width","petal_length","petal_width"}, "species");
+    Dataset dataset = Dataset::from_csv("data/mnist_train.csv", {"ALL"}, "label");
+
     Network network(
         {
-            Layer(4, 4, Activation::RELU),
-            Layer(4, 3, Activation::SOFTMAX)
+            Layer(784, 128, Activation::RELU),
+            Layer(128, 32, Activation::RELU),
+            Layer(32, 10, Activation::SOFTMAX)
         },
         InitType::He,
         0.01
     );
     
-    std::cout << "Starting training..." << std::endl;
-    network.train(dataset, 1000);
-    
-    std::cout << "\nTraining completed!" << std::endl;
+    network.train(dataset, 10);
     
     return 0;
 }

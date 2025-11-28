@@ -54,6 +54,8 @@ Dataset Dataset::from_csv(
     const std::vector<std::string>& input_columns,
     const std::string& output_column)
 {
+    std::cout << "Loading dataset from " << file_path << "..." << std::endl;
+
     std::ifstream file(file_path);
     if (!file.is_open()) {
         throw std::runtime_error("Error: Cannot open file: " + file_path);
@@ -67,13 +69,24 @@ Dataset Dataset::from_csv(
     std::vector<std::string> headers = split(header_line, ',');
     
     std::vector<size_t> input_indices;
-    input_indices.reserve(input_columns.size());
-    for (const auto& col_name : input_columns) {
-        auto it = std::find(headers.begin(), headers.end(), col_name);
-        if (it == headers.end()) {
-            throw std::runtime_error("Error: Input column '" + col_name + "' not found in CSV");
+    
+    // Se input_columns contiene "ALL", usa tutte le colonne tranne quella di output
+    if (input_columns.size() == 1 && input_columns[0] == "ALL") {
+        input_indices.reserve(headers.size() - 1);
+        for (size_t i = 0; i < headers.size(); i++) {
+            if (headers[i] != output_column) {
+                input_indices.push_back(i);
+            }
         }
-        input_indices.push_back(std::distance(headers.begin(), it));
+    } else {
+        input_indices.reserve(input_columns.size());
+        for (const auto& col_name : input_columns) {
+            auto it = std::find(headers.begin(), headers.end(), col_name);
+            if (it == headers.end()) {
+                throw std::runtime_error("Error: Input column '" + col_name + "' not found in CSV");
+            }
+            input_indices.push_back(std::distance(headers.begin(), it));
+        }
     }
 
     auto output_it = std::find(headers.begin(), headers.end(), output_column);
@@ -169,6 +182,8 @@ Dataset Dataset::from_csv(
     }
 
     file.close();
+
+    std::cout << "Dataset loaded successfully" << std::endl;
 
     if (inputs.empty()) {
         throw std::runtime_error("Error: No data rows found in CSV file");
