@@ -1,10 +1,13 @@
 // network.cpp
 
 #include "Network.hpp"
+#include "TrainingLogger.hpp"
+#include <cmath>
 
-Network::Network(std::vector<Layer> layers_param, InitType init_type, double learning_rate)
+Network::Network(std::vector<Layer> layers_param, InitType init_type, double learning_rate, Loss loss_type)
     : layers(layers_param),
       learning_rate(learning_rate),
+      loss_type(loss_type),
       accumulated_loss(0.0)
 {
     if (layers.size() < 2)
@@ -35,16 +38,11 @@ const Matrix& Network::get_output() const { return layers.back().getA(); }
 void Network::train(Dataset& dataset, size_t epochs)
 {
     dataset_size = dataset.size();
-    
-    std::cout << "Starting training..." << std::endl;
-    std::cout << "Dataset size: " << dataset_size << " examples" << std::endl;
-    std::cout << "Total iterations: " << (epochs + 1) * dataset_size << std::endl;
+    TrainingLogger logger;
 
     for (size_t epoch = 0; epoch <= epochs; epoch++)
     {
         dataset.shuffle();
-
-        std::cout << "Epoch " << epoch << "/" << epochs << " (" << dataset.size() << " examples)..." << std::flush;
 
         for (size_t i = 0; i < dataset.size(); i++)
         {
@@ -53,20 +51,23 @@ void Network::train(Dataset& dataset, size_t epochs)
             size_t label = dataset.get_output(i);
             Matrix& pred = layers.back().getA();
             
+            accumulate_loss(pred, label);
             compute_accuracy(pred, label);
 
             backprop(label);
             step(learning_rate);
         }
 
-        std::cout << std::endl;
-        print_accuracy(); 
-        lr_reduce_on_plateau();
+        accuracy = static_cast<double>(correct_predictions) / dataset_size;
+        double avg_loss = accumulated_loss / dataset_size;
         
+        logger.log_epoch(epoch, epochs, accuracy, avg_loss);
+        
+        lr_reduce_on_plateau();
         reset_epoch_metrics();
     }
 
-    std::cout << "Training completed!" << std::endl;
+    logger.log_completion();
 }
 
 void Network::forward(const Matrix& input)
@@ -100,7 +101,34 @@ void Network::loss_gradient(size_t label)
 
 void Network::accumulate_loss(const Matrix& prediction, size_t label)
 {
-
+    switch (loss_type)
+    {
+        case Loss::CROSS_ENTROPY:
+        {
+            double pred_prob = prediction.get(label, 0);
+            if (pred_prob < 1e-10) pred_prob = 1e-10; // Avoid log(0)
+            accumulated_loss += -std::log(pred_prob);
+            break;
+        }
+        case Loss::MSE:
+        {
+            // Create target vector (one-hot encoding)
+            Matrix target(prediction.rows(), 1);
+            target.fill(0.0);
+            target.set(label, 0, 1.0);
+            
+            // MSE: sum of squared differences
+            Matrix diff = prediction - target;
+            double mse = 0.0;
+            for (size_t i = 0; i < diff.rows(); i++)
+            {
+                double val = diff.get(i, 0);
+                mse += val * val;
+            }
+            accumulated_loss += mse;
+            break;
+        }
+    }
 }
 
 void Network::step(double learning_rate)

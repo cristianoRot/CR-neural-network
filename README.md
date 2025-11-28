@@ -1,17 +1,17 @@
 # CrNeuralNet
 
-A lightweight C++ implementation of a neural network library with matrix operations, layer functionality, and automatic differentiation for backpropagation.
+A lightweight C++ implementation of a neural network library with layer functionality, automatic differentiation for backpropagation, and real-time training visualization.
 
 ## Features
 
-- **Matrix Operations**: Addition, subtraction, multiplication, transpose, Hadamard product
 - **Activation Functions**: ReLU, Softmax, and their derivatives
-- **Neural Network Layers**: Input, Hidden, and Output layers with forward/backward propagation
-- **Weight Initialization**: Xavier, He, Random, and Zero initialization methods
+- **Neural Network Layers**: Flexible layer architecture with forward/backward propagation
+- **Weight Initialization**: He, Random, and Zero initialization methods
 - **Training**: Complete training loop with gradient descent and accuracy tracking
 - **CSV Dataset Loading**: Load training data directly from CSV files with automatic label mapping
 - **Learning Rate Scheduling**: Automatic learning rate reduction on plateau for better convergence
 - **Momentum Optimization**: Gradient descent with momentum for faster training
+- **Real-time Visualization**: Live loss and accuracy graphs with color-coded plots during training
 - **Modern C++**: Uses std::vector for memory management, operator overloading, and smart pointers
 
 ## Project Structure
@@ -31,7 +31,8 @@ CrNeuralNet/
 │   └── Dataset.cpp     # Dataset implementation
 ├── build/              # Object files directory (created during compilation)
 ├── data/               # Dataset files (CSV format)
-│   └── iris.csv        # Iris flower dataset example
+│   ├── iris.csv        # Iris flower dataset example
+│   └── btc_data.csv    # Bitcoin dataset example
 ├── main.cpp            # Main example program
 ├── Makefile           # Build automation
 └── README.md
@@ -87,9 +88,9 @@ int main() {
 }
 ```
 
-### Iris Flower Classification Example
+### Bitcoin Dataset Example
 
-Complete example using the Iris dataset (150 samples, 4 features, 3 classes):
+Example using the Bitcoin dataset for binary classification:
 
 ```cpp
 #include "include/Network.hpp"
@@ -97,25 +98,35 @@ Complete example using the Iris dataset (150 samples, 4 features, 3 classes):
 #include <iostream>
 
 int main() {
-    // Load dataset: 4 features (sepal/petal length/width) -> 3 classes (setosa/versicolor/virginica)
+    // Load Bitcoin dataset: 24 features -> 2 classes (binary classification)
     Dataset dataset = Dataset::from_csv(
-        "data/iris.csv",
-        {"sepal_length", "sepal_width", "petal_length", "petal_width"},
-        "species"
+        "data/btc_data.csv",
+        {"ALL"},  // Use all columns except the output column
+        "label"
     );
     
-    // Network: 4 input -> 4 hidden -> 3 output
-    Network network({4, 4, 3}, InitType::He, 0.01);
+    // Network architecture: 24 input -> 12 hidden -> 6 hidden -> 2 output
+    Network network(
+        {
+            Layer(24, 12, Activation::RELU),
+            Layer(12, 6, Activation::RELU),
+            Layer(6, 2, Activation::SOFTMAX)
+        },
+        InitType::He,
+        0.01
+    );
     
-    std::cout << "Starting training..." << std::endl;
-    network.train(dataset, 1000);
-    std::cout << "\nTraining completed!" << std::endl;
+    network.train(dataset, 50);
     
     return 0;
 }
 ```
 
-The network automatically maps text labels ("setosa", "versicolor", "virginica") to numeric indices (0, 1, 2) and typically achieves 95-99% accuracy.
+The `{"ALL"}` parameter automatically selects all columns except the output column as input features. The training process displays real-time graphs showing loss (red) and accuracy (blue) trends.
+
+### Other Datasets
+
+You can also use other datasets like the Iris flower dataset (150 samples, 4 features, 3 classes) by loading them from CSV files. The library automatically handles text label mapping to numeric indices.
 
 ### Manual Dataset Creation
 
@@ -134,24 +145,13 @@ Network network({2, 4, 2}, InitType::He, 0.1);
 network.train(dataset, 100);
 ```
 
-### Matrix Operations
+## Training Visualization
 
-```cpp
-#include "include/Matrix.hpp"
+During training, the library displays real-time graphs showing:
+- **Loss Graph (Red)**: Cross-entropy or MSE loss over epochs
+- **Accuracy Graph (Blue)**: Classification accuracy over epochs
 
-// Create matrices
-Matrix m1(2, 3, {1, 2, 3, 4, 5, 6});
-Matrix m2(3, 2, {1, 2, 3, 4, 5, 6});
-
-// Matrix operations
-Matrix result = m1 * m2;           // Matrix multiplication
-Matrix sum = m1 + m2.transpose();  // Addition with transpose
-Matrix relu = m1.relu();           // ReLU activation
-Matrix softmax = m1.softmax();    // Softmax activation
-
-// Print matrix
-result.print();
-```
+The graphs update in-place during training, showing the current epoch, max accuracy achieved, and both metrics side-by-side. The visualization uses a fixed scale based on initial values to clearly show improvement trends.
 
 ## Weight Initialization
 
@@ -160,7 +160,6 @@ The network supports different weight initialization methods:
 - `InitType::Zero` - Initialize all weights to zero (not recommended for training)
 - `InitType::Rand` - Random initialization with small values (-0.01 to 0.01)
 - `InitType::He` - He initialization (recommended for ReLU activation functions)
-- `InitType::Xavier` - Xavier/Glorot initialization (good for tanh/sigmoid)
 
 ## Training Features
 

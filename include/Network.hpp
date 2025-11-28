@@ -13,6 +13,7 @@ class Network
 {
     private:
         std::vector<Layer> layers;
+        Loss loss_type;
 
         double learning_rate;
         double accumulated_loss = 0.0;
@@ -30,7 +31,7 @@ class Network
         size_t dataset_size = 0;
 
     public:
-        Network(std::vector<Layer> layers, InitType init_type, double learning_rate);
+        Network(std::vector<Layer> layers, InitType init_type, double learning_rate, Loss loss_type = Loss::CROSS_ENTROPY);
 
         void init_weights(InitType init_type);
         const Matrix& get_output() const;
