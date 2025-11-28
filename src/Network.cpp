@@ -2,9 +2,11 @@
 
 #include "Network.hpp"
 #include "TrainingLogger.hpp"
+#include "ModelIO.hpp"
 #include <cmath>
+#include <string>
 
-Network::Network(std::vector<Layer> layers_param, InitType init_type, double learning_rate, Loss loss_type)
+Network::Network(std::vector<Layer> layers_param, double learning_rate, InitType init_type, Loss loss_type)
     : layers(layers_param),
       learning_rate(learning_rate),
       loss_type(loss_type),
@@ -92,11 +94,38 @@ void Network::backprop(size_t label)
 
 void Network::loss_gradient(size_t label)
 {
-    Matrix dZ = layers.back().getA();
-    double v = dZ.get(label, 0);
+    const Matrix& prediction = layers.back().getA();
 
-    dZ.set(label, 0, v - 1.0);
-    layers.back().set_dZ(dZ);
+    switch (loss_type)
+    {
+        case Loss::CROSS_ENTROPY:
+        {
+            Matrix dZ = prediction;
+            double v = dZ.get(label, 0);
+            dZ.set(label, 0, v - 1.0);
+            layers.back().set_dZ(dZ);
+
+            break;
+        }
+        case Loss::MSE:
+        {
+            Matrix target(prediction.rows(), 1);
+            target.fill(0.0);
+            target.set(label, 0, 1.0);
+            
+            Matrix dZ = prediction - target;
+
+            for (size_t i = 0; i < dZ.rows(); i++)
+            {
+                double val = dZ.get(i, 0);
+                dZ.set(i, 0, 2.0 * val);
+            }
+
+            layers.back().set_dZ(dZ);
+
+            break;
+        }
+    }
 }
 
 void Network::accumulate_loss(const Matrix& prediction, size_t label)
@@ -145,6 +174,9 @@ void Network::lr_reduce_on_plateau()
     {
         best_accuracy = accuracy;
         patience_counter = 0;
+        
+        ModelIO::save_model(*this, "checkpoints/model.crnn");
+        
         return;
     }
 
@@ -198,4 +230,14 @@ size_t Network::argmax(const Matrix& prediction)
         }
     }
     return max_idx;
+}
+
+void Network::load(const std::string& filepath)
+{
+    ModelIO::load_model(*this, filepath);
+}
+
+void Network::save(const std::string& filepath)
+{
+    ModelIO::save_model(*this, filepath);
 }

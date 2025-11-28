@@ -22,6 +22,9 @@ class Matrix
 
         size_t rows() const;
         size_t cols() const;
+        
+        const std::vector<double>& get_data() const { return data; }
+        void set_data(const std::vector<double>& new_data) { data = new_data; }
 
         Matrix& operator+=(const Matrix& other);
         Matrix& operator-=(const Matrix& other);
