@@ -12,9 +12,7 @@
 class Network 
 {
     private:
-        InputLayer input_layer;
-        std::vector<HiddenLayer> layers;
-        std::unique_ptr<OutputLayer> output_layer;
+        std::vector<Layer> layers;
 
         double learning_rate;
         double accumulated_loss = 0.0;
@@ -32,7 +30,7 @@ class Network
         size_t total_predictions = 0;
 
     public:
-        Network(std::vector<size_t> layer_sizes, InitType init_type, double learning_rate);
+        Network(std::vector<Layer> layers, InitType init_type, double learning_rate);
 
         void init_weights(InitType init_type);
         const Matrix& get_output() const;

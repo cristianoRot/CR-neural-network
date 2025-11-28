@@ -7,9 +7,10 @@
 
 // Constructor
 
-Layer::Layer(size_t input_size, size_t output_size) :
+Layer::Layer(size_t input_size, size_t output_size, Activation activation) :
     input_size(input_size),
     output_size(output_size),
+    activation(activation),
 
     A(output_size, 1),
     b(output_size, 1), 
@@ -22,17 +23,10 @@ Layer::Layer(size_t input_size, size_t output_size) :
     dZ(output_size, 1),
 
     vW(output_size, input_size),
-    vb(output_size, 1)
+    vb(output_size, 1),
+    prev_A(nullptr),
+    prev_dA(nullptr)
 { }
-
-InputLayer::InputLayer(size_t input_size, size_t output_size) :
-    Layer(input_size, output_size) { }
-
-HiddenLayer::HiddenLayer(size_t input_size, size_t output_size) :
-    Layer(input_size, output_size) { }
-
-OutputLayer::OutputLayer(size_t input_size, size_t output_size) :
-    Layer(input_size, output_size) { }
 
 // Getters and Setters
 
@@ -48,6 +42,8 @@ void Layer::set_dA(const Matrix& g) { dA = g; }
 const Matrix& Layer::get_dZ() const { return dZ; }
 void Layer::set_dZ(const Matrix& g) { dZ = g; }
 
+void Layer::set_prev_A(const Matrix* prev_A_ptr) { prev_A = prev_A_ptr; }
+
 void Layer::step(double lr, double beta)
 {
     vW = (vW * beta) + (dW * (1 - beta));
@@ -61,15 +57,18 @@ void Layer::step(double lr, double beta)
 
 void Layer::connect_prev(const Layer& prev)
 {
+    if (prev.output_size != this->input_size)
+    {
+        throw std::invalid_argument(
+            "Error: Dimension mismatch in layer connection. "
+            "Previous layer output size (" + std::to_string(prev.output_size) + 
+            ") does not match current layer input size (" + std::to_string(this->input_size) + ")"
+        );
+    }
+
     prev_A = &prev.getA();
     prev_dA = const_cast<Matrix*>(&prev.get_dA());
 }
-
-// Input Layer
-
-void InputLayer::forward() { }
-
-void InputLayer::backprop() { }
 
 // Hidden Layer
 
@@ -111,13 +110,55 @@ void Layer::init_weights(InitType init_type)
     }
 }
 
-void HiddenLayer::forward()
+void Layer::forward()
 {
     Z = (W * (*prev_A)) + b;
-    A = Z.relu();
+
+    switch (activation)
+    {
+        case Activation::RELU:
+            A = Z.relu();
+            break;
+        case Activation::SOFTMAX:
+            A = Z.softmax();
+            break;
+        case Activation::LINEAR:
+            A = Z;
+            break;
+        case Activation::SIGMOID:
+            // TODO: Implement sigmoid activation
+            A = Z;
+            break;
+    }
 }
 
-void HiddenLayer::backprop()
+void Layer::backprop()
+{
+    switch (activation)
+    {
+        case Activation::RELU:
+            backprop_relu();
+            break;
+        case Activation::SOFTMAX:
+            backprop_softmax();
+            break;
+        case Activation::LINEAR:
+            dZ = dA;
+            dW = dZ * prev_A->transpose();
+            db = dZ;
+            if (prev_dA != nullptr)
+            {
+                Matrix temp = W.transpose() * dZ;
+                *prev_dA = temp;
+            }
+            break;
+        case Activation::SIGMOID:
+            // TODO
+            break;
+    }
+}
+
+void Layer::backprop_relu()
 {
     dZ = dA.hadamard(Z.drelu());
     dW = dZ * prev_A->transpose();
@@ -130,15 +171,7 @@ void HiddenLayer::backprop()
     }
 }
 
-// Output Layer
-
-void OutputLayer::forward()
-{
-    Z = (W * (*prev_A)) + b;
-    A = Z.softmax();
-}
-
-void OutputLayer::backprop()
+void Layer::backprop_softmax()
 {
     dW = dZ * prev_A->transpose();
     db = dZ;

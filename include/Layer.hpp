@@ -10,6 +10,8 @@ class Layer
         size_t input_size;
         size_t output_size;
 
+        Activation activation;
+
         Matrix A;
         Matrix b;
         Matrix W;
@@ -27,7 +29,7 @@ class Layer
         Matrix* prev_dA;
         
     public:
-        Layer(size_t input_size, size_t output_size);
+        Layer(size_t input_size, size_t output_size, Activation activation);
         ~Layer() = default;
 
         void init_weights(InitType init_type);
@@ -36,44 +38,23 @@ class Layer
         // Getters
         const Matrix& getA() const;
         const Matrix& get_dA() const;
+        const Matrix& get_dZ() const;
+
         Matrix& getA();
         Matrix& get_dA();
-        const Matrix& get_dZ() const;
 
         // Setters
         void setA(const Matrix& g);
         void set_dA(const Matrix& g);
         void set_dZ(const Matrix& g);
+        void set_prev_A(const Matrix* prev_A_ptr);
 
-        virtual void forward() = 0;
-        virtual void backprop() = 0;
+        void forward();
+        void backprop();
 
         void step(double lr, double beta);
-};
 
-class InputLayer final : public Layer
-{
-    public:
-        InputLayer(size_t input_size, size_t output_size);
-
-        void forward() override;
-        void backprop() override;
-};
-
-class HiddenLayer final : public Layer
-{
-    public:
-        HiddenLayer(size_t input_size, size_t output_size);
-
-        void forward() override;
-        void backprop() override;
-};
-
-class OutputLayer : public Layer
-{
-    public:
-        OutputLayer(size_t input_size, size_t output_size);
-
-        void forward() override;
-        void backprop() override;
+    private:
+        void backprop_relu();
+        void backprop_softmax();
 };
