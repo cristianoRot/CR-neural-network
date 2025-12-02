@@ -105,7 +105,7 @@ Matrix& Matrix::operator=(const Matrix& other)
     {
         rows_ = other.rows_;
         cols_ = other.cols_;
-        data = other.data;
+    data = other.data;
     }
     return *this;
 }
@@ -179,7 +179,7 @@ Matrix Matrix::hadamard(const Matrix& other) const
 Matrix Matrix::transpose() const
 {
     Matrix trans = Matrix(cols_, rows_);
-    
+
     // Use BLAS to compute transpose: C = alpha * A^T + beta * C
     // trans = 1.0 * this^T + 0.0 * trans
     // Using dgemm with A^T: C = A^T where A is 1x1 block

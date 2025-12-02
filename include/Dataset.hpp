@@ -17,7 +17,7 @@ class Dataset
         Dataset(std::vector<Matrix> inputs, std::vector<size_t> outputs);
 
         const size_t size() const;
-        
+
         Matrix get_input(size_t start_idx, size_t batch_size) const;
         std::vector<size_t> get_output(size_t start_idx, size_t batch_size) const;
 
