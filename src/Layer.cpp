@@ -7,10 +7,10 @@
 
 // Constructor
 
-Layer::Layer(size_t input_size, size_t output_size, Activation activation) :
+Layer::Layer(size_t input_size, size_t output_size, Activation activation_type) :
     input_size(input_size),
     output_size(output_size),
-    activation(activation),
+    activation_type(activation_type),
 
     A(output_size, 1),
     b(output_size, 1), 
@@ -112,29 +112,14 @@ void Layer::init_weights(InitType init_type)
 
 void Layer::forward()
 {
-    Z = (W * (*prev_A)) + b;
-
-    switch (activation)
-    {
-        case Activation::RELU:
-            A = Z.relu();
-            break;
-        case Activation::SOFTMAX:
-            A = Z.softmax();
-            break;
-        case Activation::LINEAR:
-            A = Z;
-            break;
-        case Activation::SIGMOID:
-            // TODO: Implement sigmoid activation
-            A = Z;
-            break;
-    }
+    Z = W * (*prev_A);
+    Z.add_col_vector(b);
+    A = activation(Z);
 }
 
 void Layer::backprop()
 {
-    switch (activation)
+    switch (activation_type)
     {
         case Activation::RELU:
             backprop_relu();
@@ -143,14 +128,7 @@ void Layer::backprop()
             backprop_softmax();
             break;
         case Activation::LINEAR:
-            dZ = dA;
-            dW = dZ * prev_A->transpose();
-            db = dZ;
-            if (prev_dA != nullptr)
-            {
-                Matrix temp = W.transpose() * dZ;
-                *prev_dA = temp;
-            }
+            backprop_linear();
             break;
         case Activation::SIGMOID:
             // TODO
@@ -162,7 +140,7 @@ void Layer::backprop_relu()
 {
     dZ = dA.hadamard(Z.drelu());
     dW = dZ * prev_A->transpose();
-    db = dZ;
+    db = dZ.sum_columns();
 
     if (prev_dA != nullptr)
     {
@@ -174,11 +152,40 @@ void Layer::backprop_relu()
 void Layer::backprop_softmax()
 {
     dW = dZ * prev_A->transpose();
-    db = dZ;
+    db = dZ.sum_columns();
 
     if (prev_dA != nullptr)
     {
         Matrix temp = W.transpose() * dZ;
         *prev_dA = temp;
+    }
+}
+
+void Layer::backprop_linear()
+{
+    dZ = dA;
+    dW = dZ * prev_A->transpose();
+    db = dZ.sum_columns();
+    
+    if (prev_dA != nullptr)
+    {
+        Matrix temp = W.transpose() * dZ;
+        *prev_dA = temp;
+    }
+}
+
+Matrix Layer::activation(const Matrix& Z)
+{
+    switch (activation_type)
+    {
+        case Activation::RELU:
+            return Z.relu();
+        case Activation::SOFTMAX:
+            return Z.softmax();
+        case Activation::LINEAR:
+            return Z;
+        case Activation::SIGMOID:
+            // TODO: Implement sigmoid activation
+            return Z;
     }
 }

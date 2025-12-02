@@ -39,21 +39,18 @@ class Network
         void save(const std::string& filepath);
         const Matrix& get_output() const;
 
-        void train(Dataset& dataset, size_t epochs);
+        void train(Dataset& dataset, size_t epochs, size_t batch_size);
         void forward(const Matrix& input);
-        void backprop(size_t label);
+        void backprop(const std::vector<size_t>& labels);
         void step(double learning_rate);
 
+        void loss_gradient(const std::vector<size_t>& labels);
         void lr_reduce_on_plateau();
+        void compute_accuracy(const Matrix& prediction, const std::vector<size_t>& labels);
+        void accumulate_loss(const Matrix& prediction, const std::vector<size_t>& labels);
 
-        void loss_gradient(size_t label);
-        void accumulate_loss(const Matrix& prediction, size_t label);
-
-        void compute_accuracy(const Matrix& prediction, size_t label);
         void reset_epoch_metrics();
         void print_accuracy();
-
-        size_t argmax(const Matrix& prediction);
         
         // Model I/O getters
         std::vector<Layer>& get_layers() { return layers; }

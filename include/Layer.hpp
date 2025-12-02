@@ -10,7 +10,7 @@ class Layer
         size_t input_size;
         size_t output_size;
 
-        Activation activation;
+        Activation activation_type;
 
         Matrix A;
         Matrix b;
@@ -29,7 +29,7 @@ class Layer
         Matrix* prev_dA;
         
     public:
-        Layer(size_t input_size, size_t output_size, Activation activation);
+        Layer(size_t input_size, size_t output_size, Activation activation_type);
         ~Layer() = default;
 
         void init_weights(InitType init_type);
@@ -52,7 +52,7 @@ class Layer
         // Model I/O getters
         size_t get_input_size() const { return input_size; }
         size_t get_output_size() const { return output_size; }
-        Activation get_activation() const { return activation; }
+        Activation get_activation() const { return activation_type; }
         const Matrix& getW() const { return W; }
         const Matrix& getb() const { return b; }
         const Matrix& getvW() const { return vW; }
@@ -72,4 +72,6 @@ class Layer
     private:
         void backprop_relu();
         void backprop_softmax();
+        void backprop_linear();
+        Matrix activation(const Matrix& Z);
 };

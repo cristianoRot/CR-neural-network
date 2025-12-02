@@ -37,7 +37,7 @@ void Network::init_weights(InitType init_type)
 
 const Matrix& Network::get_output() const { return layers.back().getA(); }
 
-void Network::train(Dataset& dataset, size_t epochs)
+void Network::train(Dataset& dataset, size_t epochs, size_t batch_size)
 {
     dataset_size = dataset.size();
     TrainingLogger logger;
@@ -46,17 +46,19 @@ void Network::train(Dataset& dataset, size_t epochs)
     {
         dataset.shuffle();
 
-        for (size_t i = 0; i < dataset.size(); i++)
+        for (size_t i = 0; i < dataset.size(); i += batch_size)
         {
-            forward(dataset.get_input(i));
+            Matrix input_batch = dataset.get_input(i, batch_size);
+            std::vector<size_t> labels = dataset.get_output(i, batch_size);
 
-            size_t label = dataset.get_output(i);
+            forward(input_batch);
+
             Matrix& pred = layers.back().getA();
             
-            accumulate_loss(pred, label);
-            compute_accuracy(pred, label);
+            accumulate_loss(pred, labels);
+            compute_accuracy(pred, labels);
 
-            backprop(label);
+            backprop(labels);
             step(learning_rate);
         }
 
@@ -72,9 +74,9 @@ void Network::train(Dataset& dataset, size_t epochs)
     logger.log_completion();
 }
 
-void Network::forward(const Matrix& input)
+void Network::forward(const Matrix& input_batch)
 {
-    layers[0].set_prev_A(&input);
+    layers[0].set_prev_A(&input_batch);
 
     for (size_t i = 0; i < layers.size(); i++)
     {
@@ -82,81 +84,13 @@ void Network::forward(const Matrix& input)
     }
 }
 
-void Network::backprop(size_t label)
+void Network::backprop(const std::vector<size_t>& labels)
 {
-    loss_gradient(label);
+    loss_gradient(labels);
 
     for (size_t i = layers.size(); i-- > 0; )
     {
         layers[i].backprop();
-    }
-}
-
-void Network::loss_gradient(size_t label)
-{
-    const Matrix& prediction = layers.back().getA();
-
-    switch (loss_type)
-    {
-        case Loss::CROSS_ENTROPY:
-        {
-            Matrix dZ = prediction;
-            double v = dZ.get(label, 0);
-            dZ.set(label, 0, v - 1.0);
-            layers.back().set_dZ(dZ);
-
-            break;
-        }
-        case Loss::MSE:
-        {
-            Matrix target(prediction.rows(), 1);
-            target.fill(0.0);
-            target.set(label, 0, 1.0);
-            
-            Matrix dZ = prediction - target;
-
-            for (size_t i = 0; i < dZ.rows(); i++)
-            {
-                double val = dZ.get(i, 0);
-                dZ.set(i, 0, 2.0 * val);
-            }
-
-            layers.back().set_dZ(dZ);
-
-            break;
-        }
-    }
-}
-
-void Network::accumulate_loss(const Matrix& prediction, size_t label)
-{
-    switch (loss_type)
-    {
-        case Loss::CROSS_ENTROPY:
-        {
-            double pred_prob = prediction.get(label, 0);
-            if (pred_prob < 1e-10) pred_prob = 1e-10; // Avoid log(0)
-            accumulated_loss += -std::log(pred_prob);
-            break;
-        }
-        case Loss::MSE:
-        {
-            // Create target vector (one-hot encoding)
-            Matrix target(prediction.rows(), 1);
-            target.fill(0.0);
-            target.set(label, 0, 1.0);
-            
-            // MSE: sum of squared differences
-            Matrix diff = prediction - target;
-            double mse = 0.0;
-            for (size_t i = 0; i < diff.rows(); i++)
-            {
-                double val = diff.get(i, 0);
-                mse += val * val;
-            }
-            accumulated_loss += mse;
-            break;
-        }
     }
 }
 
@@ -165,6 +99,58 @@ void Network::step(double learning_rate)
     for (size_t i = 0; i < layers.size(); i++)
     {
         layers[i].step(learning_rate, 0.9);
+    }
+}
+
+void Network::loss_gradient(const std::vector<size_t>& labels)
+{
+    const Matrix& prediction = layers.back().getA();
+    size_t batch_size = prediction.cols();
+    size_t num_classes = prediction.rows();
+
+    if (labels.size() != batch_size)
+        throw std::invalid_argument("Error: Labels must have the same size as the batch size");
+
+    switch (loss_type)
+    {
+        case Loss::CROSS_ENTROPY:
+        {
+            Matrix dZ = prediction;
+
+            for (size_t i = 0; i < batch_size; i++)
+            {
+                size_t label = labels[i];
+                double v = dZ.get(label, i);
+                dZ.set(label, i, v - 1.0);
+            }
+
+            dZ /= batch_size;
+            layers.back().set_dZ(dZ);
+
+            break;
+        }
+        case Loss::MSE:
+        {
+            Matrix dZ(num_classes, batch_size);
+
+            for (size_t i = 0; i < batch_size; ++i)
+            {
+                size_t label = labels[i];
+
+                for (size_t cls = 0; cls < num_classes; ++cls)
+                {
+                    double target = (cls == label) ? 1.0 : 0.0;
+                    double pred   = prediction.get(cls, i);
+                    double diff   = pred - target;
+                    dZ.set(cls, i, 2.0 * diff);
+                }
+            }
+
+            dZ /= batch_size;
+            layers.back().set_dZ(dZ);
+
+            break;
+        }
     }
 }
 
@@ -196,11 +182,61 @@ void Network::lr_reduce_on_plateau()
     }
 }
 
-void Network::compute_accuracy(const Matrix& prediction, size_t label)
+void Network::compute_accuracy(const Matrix& prediction, const std::vector<size_t>& labels)
 {
-    size_t argmax = Network::argmax(prediction);
+    const size_t B = prediction.cols();
 
-    if (argmax == label) correct_predictions++;
+    for (size_t i = 0; i < B; i++)
+    {
+        size_t label = labels[i];
+        size_t argmax = prediction.argmax_col(i);
+
+        if (argmax == label) correct_predictions++;
+    }
+}
+
+void Network::accumulate_loss(const Matrix& prediction, const std::vector<size_t>& labels)
+{
+    const size_t B = prediction.cols();
+    double batch_loss = 0.0;
+
+    switch (loss_type)
+    {
+        case Loss::CROSS_ENTROPY:
+        {
+            for (size_t i = 0; i < B; i++)
+            {
+                size_t label = labels[i];
+                double pred_prob = prediction.get(label, i);
+                if (pred_prob < 1e-10) pred_prob = 1e-10; // Avoid log(0)
+                batch_loss += -std::log(pred_prob);
+            }
+            break;
+        }
+        case Loss::MSE:
+        {
+            const size_t C = prediction.rows();
+
+            for (size_t i = 0; i < B; ++i)
+            {
+                size_t label = labels[i];
+                double mse_sample = 0.0;
+
+                for (size_t cls = 0; cls < C; ++cls)
+                {
+                    double target = (cls == label) ? 1.0 : 0.0;
+                    double pred   = prediction.get(cls, i);
+                    double diff   = pred - target;
+                    mse_sample   += diff * diff;
+                }
+
+                batch_loss += mse_sample;
+            }
+            break;
+        }
+    }
+
+    accumulated_loss += batch_loss;
 }
 
 void Network::reset_epoch_metrics()
@@ -214,22 +250,6 @@ void Network::print_accuracy()
     accuracy = static_cast<double>(correct_predictions) / dataset_size;
     
     std::cout << "Accuracy: " << accuracy << std::endl;
-}
-
-size_t Network::argmax(const Matrix& prediction)
-{
-    size_t max_idx = 0;
-    double max_val = prediction.get(0, 0);
-
-    for (size_t i = 1; i < prediction.rows(); i++)
-    {
-        if (prediction.get(i, 0) > max_val)
-        {
-            max_idx = i;
-            max_val = prediction.get(i, 0);
-        }
-    }
-    return max_idx;
 }
 
 void Network::load(const std::string& filepath)

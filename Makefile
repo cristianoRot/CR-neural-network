@@ -2,7 +2,7 @@
 
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -std=c++17 -I include
+CXXFLAGS = -std=c++17 -I include -DACCELERATE_NEW_LAPACK -DACCELERATE_LAPACK_ILP64
 LDFLAGS = -framework Accelerate
 
 # Directories

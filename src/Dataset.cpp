@@ -8,6 +8,8 @@
 #include <map>
 #include <stdexcept>
 #include <cctype>
+#include <vector>
+#include <climits>
 
 Dataset::Dataset(std::vector<Matrix> inputs, std::vector<size_t> outputs)
 {
@@ -28,9 +30,51 @@ Dataset::Dataset(std::vector<Matrix> inputs, std::vector<size_t> outputs)
 
 const size_t Dataset::size() const { return inputs.size(); }
 
-const Matrix& Dataset::get_input(size_t index) const { return inputs[perm_idx[index]]; }
+Matrix Dataset::get_input(size_t start_idx, size_t batch_size) const
+{
+    size_t actual_batch_size = std::min(batch_size, size() - start_idx);
 
-const size_t Dataset::get_output(size_t index) const { return outputs[perm_idx[index]]; }
+    if (actual_batch_size == 0)
+    {
+        throw std::invalid_argument("Error: Invalid batch start index");
+    }
+    
+    size_t input_dim = inputs[perm_idx[start_idx]].rows();
+    Matrix batch_input(input_dim, actual_batch_size);
+    
+    for (size_t i = 0; i < actual_batch_size; i++)
+    {
+        size_t idx = perm_idx[start_idx + i];
+        const Matrix& single_input = inputs[idx];
+        
+        for (size_t r = 0; r < input_dim; r++)
+        {
+            batch_input.set(r, i, single_input.get(r, 0));
+        }
+    }
+    
+    return batch_input;
+}
+
+std::vector<size_t> Dataset::get_output(size_t start_idx, size_t batch_size) const
+{
+    size_t actual_batch_size = std::min(batch_size, size() - start_idx);
+    if (actual_batch_size == 0)
+    {
+        throw std::invalid_argument("Error: Invalid batch start index");
+    }
+    
+    std::vector<size_t> batch_labels;
+    batch_labels.reserve(actual_batch_size);
+    
+    for (size_t i = 0; i < actual_batch_size; i++)
+    {
+        size_t idx = perm_idx[start_idx + i];
+        batch_labels.push_back(outputs[idx]);
+    }
+    
+    return batch_labels;
+}
 
 void Dataset::shuffle() 
 { 
@@ -52,7 +96,9 @@ static std::vector<std::string> split(const std::string& s, char delimiter) {
 Dataset Dataset::from_csv(
     const std::string& file_path,
     const std::vector<std::string>& input_columns,
-    const std::string& output_column)
+    const std::string& output_column,
+    size_t start_row,
+    size_t end_row)
 {
     std::cout << "Loading dataset from " << file_path << "..." << std::endl;
 
@@ -102,8 +148,23 @@ Dataset Dataset::from_csv(
 
     std::string line;
     size_t line_num = 1;
+    size_t current_row = 0;
+    
     while (std::getline(file, line)) {
         line_num++;
+        
+        // Skip rows before start_row
+        if (current_row < start_row) {
+            current_row++;
+            continue;
+        }
+        
+        // Stop if we've reached end_row
+        if (current_row >= end_row) {
+            break;
+        }
+        
+        current_row++;
         
         if (line.empty() || line.find_first_not_of(" \t") == std::string::npos) {
             continue;
@@ -122,6 +183,7 @@ Dataset Dataset::from_csv(
         for (size_t idx : input_indices) {
             try {
                 input_values.push_back(std::stod(values[idx]));
+                
             } catch (const std::exception&) {
                 throw std::runtime_error("Error: Cannot parse input value at line " + 
                                        std::to_string(line_num) + ", column '" + 

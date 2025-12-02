@@ -267,6 +267,9 @@ private:
     LossGraph loss_graph;
     double max_accuracy = 0.0;
     size_t graph_height = 20;
+    const std::string BLUE = "\033[34m";
+    const std::string RED = "\033[31m";
+    const std::string RESET = "\033[0m";
 
 public:
     void log_epoch(size_t epoch, size_t total_epochs, double accuracy, double loss) {
@@ -278,9 +281,9 @@ public:
         loss_graph.clear_display(1 + 1 + graph_height + 2);
         
         std::cout << "\033[1mEpoch " << epoch << "/" << total_epochs 
-                  << " | Current Accuracy: " << std::fixed << std::setprecision(4) << accuracy * 100 << "%"
-                  << " | Max Accuracy: " << std::fixed << std::setprecision(4) << max_accuracy * 100 << "%"
-                  << " | Loss: " << std::fixed << std::setprecision(6) << loss << "\033[0m" << std::endl;
+                  << " | " << BLUE << "Current Accuracy: " << std::fixed << std::setprecision(4) << accuracy * 100 << "%" << RESET
+                  << " | " << BLUE << "Max Accuracy: " << std::fixed << std::setprecision(4) << max_accuracy * 100 << "%" << RESET
+                  << " | " << RED << "Loss: " << std::fixed << std::setprecision(6) << loss << RESET << "\033[0m" << std::endl;
         
         loss_graph.draw();
         std::cout.flush();
@@ -288,6 +291,6 @@ public:
     
     void log_completion() {
         std::cout << "\n\033[1;32mTraining completed!\033[0m" << std::endl;
-        std::cout << "Final Max Accuracy: " << std::fixed << std::setprecision(4) << max_accuracy * 100 << "%" << std::endl;
+        std::cout << BLUE << "Final Max Accuracy: " << std::fixed << std::setprecision(4) << max_accuracy * 100 << "%" << RESET << std::endl;
     }
 };
