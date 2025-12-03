@@ -25,9 +25,10 @@ make clean
 make
 ```
 
-This will build two executables:
+This will build three executables:
 - `build/train` - Training script
-- `build/main` - Evaluation script
+- `build/test` - Test/Evaluation script
+- `build/main` - Main application
 
 ### Training a Model
 
@@ -35,7 +36,13 @@ This will build two executables:
 make train
 ```
 
-### Evaluating a Model
+### Testing a Model
+
+```bash
+make test
+```
+
+### Running the Main Application
 
 ```bash
 make run
@@ -100,7 +107,9 @@ int main() {
 }
 ```
 
-### Evaluation
+### Testing/Evaluation
+
+The test script (`test.cpp`) evaluates the model on the test dataset:
 
 ```cpp
 #include "include/Network.hpp"
@@ -145,6 +154,11 @@ int main() {
     
     return 0;
 }
+```
+
+Run with:
+```bash
+make test
 ```
 
 ## Training Features
@@ -197,11 +211,22 @@ CrNeuralNet/
 ├── data/
 │   ├── mnist_train.csv
 │   └── mnist_test.csv
-├── train.cpp
-├── main.cpp
+├── train.cpp      # Training script (run with: make train)
+├── test.cpp       # Test/Evaluation script (run with: make test)
+├── main.cpp       # Main application (run with: make run)
 ├── Makefile
 └── README.md
 ```
+
+## Available Make Targets
+
+- `make` or `make all` - Build all executables (train, test, main)
+- `make train` - Build and run the training script
+- `make test` - Build and run the test/evaluation script
+- `make run` - Build and run the main application
+- `make clean` - Remove all build files
+- `make rebuild` - Clean and rebuild everything
+- `make help` - Show available targets
 
 ## Performance Optimizations
 
