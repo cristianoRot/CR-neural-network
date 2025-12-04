@@ -180,17 +180,7 @@ Matrix Matrix::transpose() const
 {
     Matrix trans = Matrix(cols_, rows_);
 
-    // Use BLAS to compute transpose: C = alpha * A^T + beta * C
-    // trans = 1.0 * this^T + 0.0 * trans
-    // Using dgemm with A^T: C = A^T where A is 1x1 block
-    // For efficiency, transpose manually since it's memory-bound
-    for (size_t r = 0; r < rows_; ++r) 
-    {
-        for (size_t c = 0; c < cols_; ++c) 
-        {
-            trans.data[c * rows_ + r] = data[r * cols_ + c];
-        }
-    }
+    vDSP_mtransD(data.data(), 1, trans.data.data(), 1, rows_, cols_);
 
     return trans;
 }
