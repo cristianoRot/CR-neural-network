@@ -4,7 +4,8 @@
 #include <iostream>
 #include <vector>
 
-int main() {
+int main() 
+{
     Dataset dataset = Dataset::from_csv("data/mnist_test.csv", {"ALL"}, "label");
 
     Network network(

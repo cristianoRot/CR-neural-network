@@ -53,6 +53,7 @@ class Matrix
 
         // In-place operations
         void add_col_vector(const Matrix& b);
+        void multiply_col(size_t col_idx, double scalar);
         Matrix sum_columns() const;
         size_t argmax_col(size_t col_idx) const;
 

@@ -14,6 +14,7 @@ class Network
 {
     private:
         std::vector<Layer> layers;
+        std::vector<double> class_weights;
         Loss loss_type;
 
         double learning_rate;

@@ -22,6 +22,15 @@ Network::Network(std::vector<Layer> layers_param, double learning_rate, InitType
         layers[i].connect_prev(layers[i - 1]);
     }
 
+    Layer& last_layer = layers.back();
+
+    if (loss_type == Loss::CROSS_ENTROPY && last_layer.get_activation() != Activation::SOFTMAX)
+    {
+        throw std::invalid_argument(
+            "Error: Cross-entropy loss requires SOFTMAX activation in the last layer"
+        );
+    }
+
     init_weights(init_type);
 }
 
@@ -40,6 +49,8 @@ const Matrix& Network::get_output() const { return layers.back().getA(); }
 void Network::train(Dataset& dataset, size_t epochs, size_t batch_size)
 {
     dataset_size = dataset.size();
+    class_weights = dataset.get_class_weight();
+
     TrainingLogger logger;
 
     for (size_t epoch = 0; epoch <= epochs; epoch++)
@@ -120,8 +131,11 @@ void Network::loss_gradient(const std::vector<size_t>& labels)
             for (size_t i = 0; i < batch_size; i++)
             {
                 size_t label = labels[i];
+                double weight = class_weights[label];
+
                 double v = dZ.get(label, i);
                 dZ.set(label, i, v - 1.0);
+                dZ.multiply_col(i, weight);
             }
 
             dZ /= batch_size;
@@ -136,13 +150,14 @@ void Network::loss_gradient(const std::vector<size_t>& labels)
             for (size_t i = 0; i < batch_size; ++i)
             {
                 size_t label = labels[i];
-
+                double weight = class_weights[label];
+                
                 for (size_t cls = 0; cls < num_classes; ++cls)
                 {
                     double target = (cls == label) ? 1.0 : 0.0;
                     double pred   = prediction.get(cls, i);
                     double diff   = pred - target;
-                    dZ.set(cls, i, 2.0 * diff);
+                    dZ.set(cls, i, 2.0 * diff * weight);
                 }
             }
 
@@ -207,9 +222,11 @@ void Network::accumulate_loss(const Matrix& prediction, const std::vector<size_t
             for (size_t i = 0; i < B; i++)
             {
                 size_t label = labels[i];
+                double weight = class_weights[label];
+
                 double pred_prob = prediction.get(label, i);
                 if (pred_prob < 1e-10) pred_prob = 1e-10; // Avoid log(0)
-                batch_loss += -std::log(pred_prob);
+                batch_loss -= weight * std::log(pred_prob);
             }
             break;
         }
@@ -220,6 +237,8 @@ void Network::accumulate_loss(const Matrix& prediction, const std::vector<size_t
             for (size_t i = 0; i < B; ++i)
             {
                 size_t label = labels[i];
+                double weight = class_weights[label];
+
                 double mse_sample = 0.0;
 
                 for (size_t cls = 0; cls < C; ++cls)
@@ -227,7 +246,7 @@ void Network::accumulate_loss(const Matrix& prediction, const std::vector<size_t
                     double target = (cls == label) ? 1.0 : 0.0;
                     double pred   = prediction.get(cls, i);
                     double diff   = pred - target;
-                    mse_sample   += diff * diff;
+                    mse_sample   += weight * diff * diff;
                 }
 
                 batch_loss += mse_sample;

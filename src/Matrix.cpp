@@ -278,6 +278,16 @@ void Matrix::add_col_vector(const Matrix& b)
     }
 }
 
+void Matrix::multiply_col(size_t col_idx, double scalar)
+{
+    if (col_idx >= cols_)
+    {
+        throw std::invalid_argument("Error: Column index out of bounds");
+    }
+    
+    vDSP_vsmulD(&data[col_idx], cols_, &scalar, &data[col_idx], cols_, rows_);
+}
+
 Matrix Matrix::sum_columns() const
 {
     Matrix result(rows_, 1);
