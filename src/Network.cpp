@@ -1,16 +1,17 @@
 // network.cpp
 
 #include "Network.hpp"
+#include "Dataset.hpp"
 #include "TrainingLogger.hpp"
 #include "ModelIO.hpp"
-#include <cmath>
+#include "MetricsHandler.hpp"
+#include <cstddef>
 #include <string>
 
 Network::Network(std::vector<Layer> layers_param, double learning_rate, InitType init_type, Loss loss_type)
     : layers(layers_param),
-      learning_rate(learning_rate),
       loss_type(loss_type),
-      accumulated_loss(0.0)
+      optimizer(learning_rate)
 {
     if (layers.size() < 2)
     {
@@ -46,43 +47,69 @@ void Network::init_weights(InitType init_type)
 
 const Matrix& Network::get_output() const { return layers.back().getA(); }
 
+std::pair<double, double> Network::eval(Dataset& dataset)
+{
+    set_mode(Mode::EVAL);
+    class_weights = dataset.get_class_weight();
+    
+    return do_pass(dataset, 1);
+}
+
 void Network::train(Dataset& dataset, size_t epochs, size_t batch_size)
 {
     dataset_size = dataset.size();
     class_weights = dataset.get_class_weight();
 
+
     TrainingLogger logger;
 
     for (size_t epoch = 0; epoch <= epochs; epoch++)
     {
+        set_mode(Mode::TRAIN);
         dataset.shuffle();
 
-        for (size_t i = 0; i < dataset.size(); i += batch_size)
-        {
-            Matrix input_batch = dataset.get_input(i, batch_size);
-            std::vector<size_t> labels = dataset.get_output(i, batch_size);
-
-            forward(input_batch);
-
-            Matrix& pred = layers.back().getA();
-            
-            accumulate_loss(pred, labels);
-            compute_accuracy(pred, labels);
-
-            backprop(labels);
-            step(learning_rate);
-        }
-
-        accuracy = static_cast<double>(correct_predictions) / dataset_size;
-        double avg_loss = accumulated_loss / dataset_size;
+        std::pair<double, double> train_metrics = do_pass(dataset, batch_size);
+        double train_accuracy = train_metrics.first;
+        double train_loss = train_metrics.second;
         
-        logger.log_epoch(epoch, epochs, accuracy, avg_loss);
+        std::pair<double, double> eval_metrics = eval(dataset);
+        double eval_accuracy = eval_metrics.first;
+        double eval_loss = eval_metrics.second;
         
-        lr_reduce_on_plateau();
-        reset_epoch_metrics();
+        logger.log_epoch(epoch, epochs, train_accuracy, train_loss, eval_accuracy, eval_loss);
+        optimizer.lr_reduce_on_plateau(train_accuracy, *this);
     }
 
     logger.log_completion();
+}
+
+std::pair<double, double> Network::do_pass(Dataset& dataset, size_t batch_size)
+{
+    size_t correct_predictions = 0;
+    double accumulated_loss = 0.0;
+
+    for (size_t i = 0; i < dataset.size(); i += batch_size)
+    {
+        Matrix input = dataset.get_input(i, batch_size);
+        std::vector<size_t> labels = dataset.get_output(i, batch_size);
+
+        forward(input);
+
+        Matrix& pred = layers.back().getA();
+        
+        accumulated_loss = MetricsHandler::accumulate_loss(pred, labels, accumulated_loss, loss_type, class_weights);
+        correct_predictions += MetricsHandler::count_correct_predictions(pred, labels);
+
+        if (mode == Mode::EVAL) continue;
+        
+        backprop(labels);
+        optimizer.step(layers);
+    }
+
+    double acc = static_cast<double>(correct_predictions) / dataset.size();
+    double loss = accumulated_loss / dataset.size();
+
+    return {acc, loss};
 }
 
 void Network::forward(const Matrix& input_batch)
@@ -97,178 +124,15 @@ void Network::forward(const Matrix& input_batch)
 
 void Network::backprop(const std::vector<size_t>& labels)
 {
-    loss_gradient(labels);
+    Matrix& pred = layers.back().getA();
+    Matrix dZ = MetricsHandler::compute_loss_gradient(pred, labels, loss_type, class_weights);
+
+    layers.back().set_dZ(dZ);
 
     for (size_t i = layers.size(); i-- > 0; )
     {
         layers[i].backprop();
     }
-}
-
-void Network::step(double learning_rate)
-{
-    for (size_t i = 0; i < layers.size(); i++)
-    {
-        layers[i].step(learning_rate, 0.9);
-    }
-}
-
-void Network::loss_gradient(const std::vector<size_t>& labels)
-{
-    const Matrix& prediction = layers.back().getA();
-    size_t batch_size = prediction.cols();
-    size_t num_classes = prediction.rows();
-
-    if (labels.size() != batch_size)
-        throw std::invalid_argument("Error: Labels must have the same size as the batch size");
-
-    switch (loss_type)
-    {
-        case Loss::CROSS_ENTROPY:
-        {
-            Matrix dZ = prediction;
-
-            for (size_t i = 0; i < batch_size; i++)
-            {
-                size_t label = labels[i];
-                double weight = class_weights[label];
-
-                double v = dZ.get(label, i);
-                dZ.set(label, i, v - 1.0);
-                dZ.multiply_col(i, weight);
-            }
-
-            dZ /= batch_size;
-            layers.back().set_dZ(dZ);
-
-            break;
-        }
-        case Loss::MSE:
-        {
-            Matrix dZ(num_classes, batch_size);
-
-            for (size_t i = 0; i < batch_size; ++i)
-            {
-                size_t label = labels[i];
-                double weight = class_weights[label];
-                
-                for (size_t cls = 0; cls < num_classes; ++cls)
-                {
-                    double target = (cls == label) ? 1.0 : 0.0;
-                    double pred   = prediction.get(cls, i);
-                    double diff   = pred - target;
-                    dZ.set(cls, i, 2.0 * diff * weight);
-                }
-            }
-
-            dZ /= batch_size;
-            layers.back().set_dZ(dZ);
-
-            break;
-        }
-    }
-}
-
-void Network::lr_reduce_on_plateau()
-{
-    if (accuracy > best_accuracy + min_delta)
-    {
-        best_accuracy = accuracy;
-        patience_counter = 0;
-        
-        ModelIO::save_model(*this, "checkpoints/model.crnn");
-        
-        return;
-    }
-
-    patience_counter++;
-    
-    if (patience_counter >= patience)
-    {
-        double new_lr = learning_rate * factor;
-        
-        if (new_lr >= min_lr)
-        {
-            learning_rate = new_lr;            
-            best_accuracy = accuracy;
-        }
-        
-        patience_counter = 0;
-    }
-}
-
-void Network::compute_accuracy(const Matrix& prediction, const std::vector<size_t>& labels)
-{
-    const size_t B = prediction.cols();
-
-    for (size_t i = 0; i < B; i++)
-    {
-        size_t label = labels[i];
-        size_t argmax = prediction.argmax_col(i);
-
-        if (argmax == label) correct_predictions++;
-    }
-}
-
-void Network::accumulate_loss(const Matrix& prediction, const std::vector<size_t>& labels)
-{
-    const size_t B = prediction.cols();
-    double batch_loss = 0.0;
-
-    switch (loss_type)
-    {
-        case Loss::CROSS_ENTROPY:
-        {
-            for (size_t i = 0; i < B; i++)
-            {
-                size_t label = labels[i];
-                double weight = class_weights[label];
-
-                double pred_prob = prediction.get(label, i);
-                if (pred_prob < 1e-10) pred_prob = 1e-10; // Avoid log(0)
-                batch_loss -= weight * std::log(pred_prob);
-            }
-            break;
-        }
-        case Loss::MSE:
-        {
-            const size_t C = prediction.rows();
-
-            for (size_t i = 0; i < B; ++i)
-            {
-                size_t label = labels[i];
-                double weight = class_weights[label];
-
-                double mse_sample = 0.0;
-
-                for (size_t cls = 0; cls < C; ++cls)
-                {
-                    double target = (cls == label) ? 1.0 : 0.0;
-                    double pred   = prediction.get(cls, i);
-                    double diff   = pred - target;
-                    mse_sample   += weight * diff * diff;
-                }
-
-                batch_loss += mse_sample;
-            }
-            break;
-        }
-    }
-
-    accumulated_loss += batch_loss;
-}
-
-void Network::reset_epoch_metrics()
-{
-    correct_predictions = 0;
-    accumulated_loss = 0.0;
-}
-
-void Network::print_accuracy()
-{
-    accuracy = static_cast<double>(correct_predictions) / dataset_size;
-    
-    std::cout << "Accuracy: " << accuracy << std::endl;
 }
 
 void Network::load(const std::string& filepath)

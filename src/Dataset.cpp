@@ -1,7 +1,7 @@
 // dataset.cpp
 
 #include "Dataset.hpp"
-#include <random>
+#include "RNG.hpp"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include <cctype>
 #include <vector>
-#include <climits>
 #include <numeric>
 #include <iostream>
 
@@ -66,7 +65,7 @@ std::vector<size_t> Dataset::get_output(size_t start_idx, size_t batch_size) con
 }
 
 void Dataset::shuffle() { 
-    std::shuffle(perm_idx.begin(), perm_idx.end(), std::mt19937{std::random_device{}()});
+    std::shuffle(perm_idx.begin(), perm_idx.end(), RNG::get_engine());
 }
 
 std::vector<double> Dataset::get_class_weight() const

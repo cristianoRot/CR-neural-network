@@ -1,7 +1,5 @@
-#include "include/Network.hpp"
-#include "include/Dataset.hpp"
-#include "include/Matrix.hpp"
-#include <iostream>
+#include "Network.hpp"
+#include "Dataset.hpp"
 #include <vector>
 
 int main() 

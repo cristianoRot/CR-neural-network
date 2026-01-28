@@ -2,7 +2,7 @@
 
 #include "Functions.hpp"
 #include "Layer.hpp"
-#include <random>
+#include "RNG.hpp"
 #include <cmath>
 
 // Constructor
@@ -12,15 +12,15 @@ Layer::Layer(size_t input_size, size_t output_size, Activation activation_type) 
     output_size(output_size),
     activation_type(activation_type),
 
-    A(output_size, 1),
+    A(),
     b(output_size, 1), 
     W(output_size, input_size),
-    Z(output_size, 1),
+    Z(),
 
-    dA(output_size, 1),
+    dA(),
     db(output_size, 1),
     dW(output_size, input_size),
-    dZ(output_size, 1),
+    dZ(),
 
     vW(output_size, input_size),
     vb(output_size, 1),
@@ -78,8 +78,6 @@ void Layer::init_weights(InitType init_type)
     vW.fill(0.0);
     vb.fill(0.0);
 
-    static thread_local std::mt19937 gen{ std::random_device{}() };
-
     const size_t fan_in  = input_size;
     const size_t fan_out = output_size;
 
@@ -91,20 +89,18 @@ void Layer::init_weights(InitType init_type)
 
         case InitType::Rand:
         {
-            std::uniform_real_distribution<double> dist(-0.01, 0.01);
             for (std::size_t r = 0; r < output_size; ++r)
                 for (std::size_t c = 0; c < input_size; ++c)
-                    W.set(r, c, dist(gen));
+                    W.set(r, c, RNG::get_random_range(-0.01, 0.01));
             break;
         }
 
         case InitType::He:
         {
             const double stddev = std::sqrt(2.0 / static_cast<double>(fan_in));
-            std::normal_distribution<double> dist(0.0, stddev);
             for (std::size_t r = 0; r < output_size; ++r)
                 for (std::size_t c = 0; c < input_size; ++c)
-                    W.set(r, c, dist(gen));
+                    W.set(r, c, RNG::get_normal(0.0, stddev));
             break;
         }
     }
