@@ -9,6 +9,8 @@ class Optimizer
 {
     private:
         double learning_rate;
+        double momentum = 0.9;
+
         double min_lr;
         double factor;
         double min_delta;
@@ -16,13 +18,15 @@ class Optimizer
         
         size_t patience_counter = 0;
         double best_accuracy = 0.0;
-        double momentum = 0.9;
+
+        double clipping_threshold = 1.0;
 
     public:
-        Optimizer(double initial_lr, double min_lr = 1e-6, double factor = 0.7, double min_delta = 0.001, size_t patience = 20);
+        Optimizer(double initial_lr, double min_lr = 1e-6, double factor = 0.7, double min_delta = 0.001, size_t patience = 5);
 
         void step(std::vector<Layer>& layers);
         void lr_reduce_on_plateau(double current_accuracy, Network& network);
+        void apply_clipping(std::vector<Layer>& layers);
 
         double get_learning_rate() const { return learning_rate; }
         double get_best_accuracy() const { return best_accuracy; }

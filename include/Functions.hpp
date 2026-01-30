@@ -2,6 +2,11 @@
 
 #pragma once
 
+enum class Mode {
+    TRAIN,
+    EVAL
+};
+
 enum class InitType {
     Zero,
     Rand,

@@ -47,7 +47,7 @@ void Network::init_weights(InitType init_type)
 
 const Matrix& Network::get_output() const { return layers.back().getA(); }
 
-std::pair<double, double> Network::eval(Dataset& dataset)
+Metrics Network::eval(Dataset& dataset)
 {
     set_mode(Mode::EVAL);
     class_weights = dataset.get_class_weight();
@@ -68,22 +68,22 @@ void Network::train(Dataset& dataset, size_t epochs, size_t batch_size)
         set_mode(Mode::TRAIN);
         dataset.shuffle();
 
-        std::pair<double, double> train_metrics = do_pass(dataset, batch_size);
-        double train_accuracy = train_metrics.first;
-        double train_loss = train_metrics.second;
+        Metrics train_metrics = do_pass(dataset, batch_size);
+        double train_accuracy = train_metrics.accuracy;
+        double train_loss = train_metrics.loss;
         
-        std::pair<double, double> eval_metrics = eval(dataset);
-        double eval_accuracy = eval_metrics.first;
-        double eval_loss = eval_metrics.second;
+        Metrics eval_metrics = eval(dataset);
+        double eval_accuracy = eval_metrics.accuracy;
+        double eval_loss = eval_metrics.loss;
         
         logger.log_epoch(epoch, epochs, train_accuracy, train_loss, eval_accuracy, eval_loss);
-        optimizer.lr_reduce_on_plateau(train_accuracy, *this);
+        optimizer.lr_reduce_on_plateau(eval_accuracy, *this);
     }
 
     logger.log_completion();
 }
 
-std::pair<double, double> Network::do_pass(Dataset& dataset, size_t batch_size)
+Metrics Network::do_pass(Dataset& dataset, size_t batch_size)
 {
     size_t correct_predictions = 0;
     double accumulated_loss = 0.0;
@@ -118,16 +118,17 @@ void Network::forward(const Matrix& input_batch)
 
     for (size_t i = 0; i < layers.size(); i++)
     {
+        layers[i].set_mode(mode);
         layers[i].forward(); 
     }
 }
 
 void Network::backprop(const std::vector<size_t>& labels)
 {
-    Matrix& pred = layers.back().getA();
-    Matrix dZ = MetricsHandler::compute_loss_gradient(pred, labels, loss_type, class_weights);
-
-    layers.back().set_dZ(dZ);
+    Layer& last_layer = layers.back();
+    
+    // Compute loss gradient internally updates last_layer's dZ and/or dA
+    MetricsHandler::compute_loss_gradient(last_layer, labels, loss_type, class_weights);
 
     for (size_t i = layers.size(); i-- > 0; )
     {

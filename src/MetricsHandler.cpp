@@ -1,9 +1,12 @@
 #include "MetricsHandler.hpp"
+#include "Layer.hpp"
 #include <cmath>
 #include <stdexcept>
 
-Matrix MetricsHandler::compute_loss_gradient(const Matrix& prediction, const std::vector<size_t>& labels, Loss loss_type, const std::vector<double>& class_weights)
+// compute dA (and dZ in CE + softmax) for the last layer
+void MetricsHandler::compute_loss_gradient(Layer& last_layer, const std::vector<size_t>& labels, Loss loss_type, const std::vector<double>& class_weights)
 {
+    const Matrix& prediction = last_layer.getA();
     const size_t batch_size = prediction.cols();
     const size_t num_classes = prediction.rows();
 
@@ -12,13 +15,11 @@ Matrix MetricsHandler::compute_loss_gradient(const Matrix& prediction, const std
         throw std::invalid_argument("Error: Labels must have the same size as the batch size");
     }
 
-    Matrix dZ;
-
     switch (loss_type)
     {
         case Loss::CROSS_ENTROPY:
         {
-            dZ = prediction;
+            Matrix dZ = prediction;
 
             for (size_t i = 0; i < batch_size; i++)
             {
@@ -31,12 +32,14 @@ Matrix MetricsHandler::compute_loss_gradient(const Matrix& prediction, const std
             }
 
             dZ /= batch_size;
+            last_layer.set_dZ(dZ);
             break;
         }
         case Loss::MSE:
         {
-            dZ = Matrix(num_classes, batch_size);
+            Matrix dLoss_dA(num_classes, batch_size);
 
+            // MSE derivative: 2 * (A - Y)
             for (size_t i = 0; i < batch_size; ++i)
             {
                 size_t label = labels[i];
@@ -47,16 +50,15 @@ Matrix MetricsHandler::compute_loss_gradient(const Matrix& prediction, const std
                     double target = (cls == label) ? 1.0 : 0.0;
                     double pred   = prediction.get(cls, i);
                     double diff   = pred - target;
-                    dZ.set(cls, i, 2.0 * diff * weight);
+                    dLoss_dA.set(cls, i, 2.0 * diff * weight);
                 }
             }
 
-            dZ /= batch_size;
+            dLoss_dA /= batch_size;
+            last_layer.set_dA(dLoss_dA);
             break;
         }
     }
-
-    return dZ;
 }
 
 double MetricsHandler::accumulate_loss(const Matrix& prediction, const std::vector<size_t>& labels, double current_accumulated_loss, Loss loss_type, const std::vector<double>& class_weights)

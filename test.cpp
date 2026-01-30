@@ -20,8 +20,8 @@ int main()
     
     network.load("models/mnist_model.crnn");
 
-    std::pair<double, double> metrics = network.eval(dataset);
-    double accuracy = metrics.first;
+    Metrics metrics = network.eval(dataset);
+    double accuracy = metrics.accuracy;
     std::cout << "\033[34mAccuracy: " << accuracy * 100 << "%\033[0m" << std::endl;
     
     return 0;

@@ -100,6 +100,14 @@ std::vector<double> Dataset::get_class_weight() const
     return weights;
 }
 
+void Dataset::scale(double factor)
+{
+    for (Matrix& m : inputs)
+    {
+        m *= factor;
+    }
+}
+
 // ============================================================================
 // Static Methods
 // ============================================================================

@@ -1,7 +1,6 @@
 // matrix.hpp
 
 #pragma once
-#include <iostream>
 #include <vector>
 
 class Matrix 
@@ -51,11 +50,19 @@ class Matrix
 
         Matrix softmax() const;
 
-        // In-place operations
+        // Operations
         void add_col_vector(const Matrix& b);
+        void mul_col_vector(const Matrix& b);
         void multiply_col(size_t col_idx, double scalar);
+        
+        Matrix normalize(const Matrix& mean, const Matrix& var) const;
+        Matrix normalize_derivative(const Matrix& mean, const Matrix& var, const Matrix& z_norm) const;
         Matrix sum_columns() const;
+        double sum_of_squares() const;
         size_t argmax_col(size_t col_idx) const;
+
+        Matrix mean() const;
+        Matrix variance(const Matrix& mean) const;
 
         void print() const;
 };

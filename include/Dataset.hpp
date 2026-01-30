@@ -32,6 +32,8 @@ class Dataset
         void shuffle();
         
         std::vector<double> get_class_weight() const;
+
+        void scale(double factor);
         
         // ====================================================================
         // Static Methods

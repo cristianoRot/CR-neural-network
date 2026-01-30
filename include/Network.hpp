@@ -7,9 +7,9 @@
 #include "Dataset.hpp"
 #include "Optimizer.hpp"
 
-enum class Mode {
-    TRAIN,
-    EVAL
+struct Metrics {
+    double accuracy;
+    double loss;
 };
 
 class Network 
@@ -25,7 +25,7 @@ class Network
 
         size_t dataset_size = 0;
 
-        std::pair<double, double> do_pass(Dataset& dataset, size_t batch_size);
+        Metrics do_pass(Dataset& dataset, size_t batch_size);
 
     public:
         Network(std::vector<Layer> layers, double learning_rate, InitType init_type, Loss loss_type = Loss::CROSS_ENTROPY);
@@ -35,7 +35,7 @@ class Network
         void save(const std::string& filepath);
         const Matrix& get_output() const;
 
-        std::pair<double, double> eval(Dataset& dataset);
+        Metrics eval(Dataset& dataset);
         void train(Dataset& dataset, size_t epochs, size_t batch_size);
         
         void forward(const Matrix& input);

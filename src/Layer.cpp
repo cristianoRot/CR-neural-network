@@ -2,6 +2,7 @@
 
 #include "Functions.hpp"
 #include "Layer.hpp"
+#include "Matrix.hpp"
 #include "RNG.hpp"
 #include <cmath>
 
@@ -16,14 +17,27 @@ Layer::Layer(size_t input_size, size_t output_size, Activation activation_type) 
     b(output_size, 1), 
     W(output_size, input_size),
     Z(),
+    Z_norm(),
 
     dA(),
     db(output_size, 1),
     dW(output_size, input_size),
     dZ(),
 
+    // Batch Norm parameters
+    gamma(output_size, 1),
+    beta(output_size, 1),
+    dgamma(output_size, 1),
+    dbeta(output_size, 1),
+
+    running_mean(output_size, 1),
+    running_var(output_size, 1),
+
     vW(output_size, input_size),
     vb(output_size, 1),
+    vGamma(output_size, 1),
+    vBeta(output_size, 1),
+
     prev_A(nullptr),
     prev_dA(nullptr)
 { }
@@ -44,14 +58,21 @@ void Layer::set_dZ(const Matrix& g) { dZ = g; }
 
 void Layer::set_prev_A(const Matrix* prev_A_ptr) { prev_A = prev_A_ptr; }
 
-void Layer::step(double lr, double beta)
+void Layer::step(double lr, double momentum)
 {
-    vW = (vW * beta) + (dW * (1 - beta));
-    vb = (vb * beta) + (db * (1 - beta));
+    vW = (vW * momentum) + (dW);
+    vb = (vb * momentum) + (db);
 
     W -= vW * lr;
     b -= vb * lr;
+
+    vGamma = (vGamma * momentum) + dgamma;
+    vBeta  = (vBeta * momentum)  + dbeta;
+
+    gamma -= vGamma * lr;
+    beta  -= vBeta * lr;
 }
+
 
 // Connectors
 
@@ -77,6 +98,14 @@ void Layer::init_weights(InitType init_type)
     b.fill(0.0);
     vW.fill(0.0);
     vb.fill(0.0);
+    vGamma.fill(0.0);
+    vBeta.fill(0.0);
+    
+    // Batch Norm initialization
+    gamma.fill(1.0);
+    beta.fill(0.0);
+    running_mean.fill(0.0);
+    running_var.fill(1.0);
 
     const size_t fan_in  = input_size;
     const size_t fan_out = output_size;
@@ -110,67 +139,63 @@ void Layer::forward()
 {
     Z = W * (*prev_A);
     Z.add_col_vector(b);
-    A = activation(Z);
+    
+    batch_norm_forward();
+
+    A = activation();
 }
 
 void Layer::backprop()
 {
-    switch (activation_type)
-    {
-        case Activation::RELU:
-            backprop_relu();
-            break;
-        case Activation::SOFTMAX:
-            backprop_softmax();
-            break;
-        case Activation::LINEAR:
-            backprop_linear();
-            break;
-        case Activation::SIGMOID:
-            // TODO
-            break;
-    }
-}
+    compute_dz();
+    batch_norm_backprop();
 
-void Layer::backprop_relu()
-{
-    dZ = dA.hadamard(Z.drelu());
     dW = dZ * prev_A->transpose();
     db = dZ.sum_columns();
 
-    if (prev_dA != nullptr)
-    {
-        Matrix temp = W.transpose() * dZ;
-        *prev_dA = temp;
-    }
-}
-
-void Layer::backprop_softmax()
-{
-    dW = dZ * prev_A->transpose();
-    db = dZ.sum_columns();
-
-    if (prev_dA != nullptr)
-    {
-        Matrix temp = W.transpose() * dZ;
-        *prev_dA = temp;
-    }
-}
-
-void Layer::backprop_linear()
-{
-    dZ = dA;
-    dW = dZ * prev_A->transpose();
-    db = dZ.sum_columns();
+    if (prev_dA == nullptr) return;
     
-    if (prev_dA != nullptr)
-    {
-        Matrix temp = W.transpose() * dZ;
-        *prev_dA = temp;
-    }
+    Matrix temp = W.transpose() * dZ;
+    *prev_dA = temp;
 }
 
-Matrix Layer::activation(const Matrix& Z)
+void Layer::batch_norm_forward()
+{
+    switch (mode)
+    {
+        case Mode::TRAIN:
+        {
+            batch_mean = Z.mean();
+            batch_var = Z.variance(batch_mean);
+            
+            Z_norm = Z.normalize(batch_mean, batch_var);
+            
+            running_mean = running_mean * 0.9 + batch_mean * 0.1;
+            running_var = running_var * 0.9 + batch_var * 0.1;
+            break;
+        }
+        case Mode::EVAL:
+            Z_norm = Z.normalize(running_mean, running_var);
+            break;
+    }
+
+    Z = Z_norm; 
+    Z.mul_col_vector(gamma);
+    Z.add_col_vector(beta);
+}
+
+void Layer::batch_norm_backprop()
+{
+    if (mode != Mode::TRAIN) return;
+
+    dgamma = dZ.hadamard(Z_norm).sum_columns();
+    dbeta = dZ.sum_columns();
+    
+    dZ.mul_col_vector(gamma);
+    dZ = dZ.normalize_derivative(batch_mean, batch_var, Z_norm);
+}
+
+Matrix Layer::activation()
 {
     switch (activation_type)
     {
@@ -185,3 +210,38 @@ Matrix Layer::activation(const Matrix& Z)
             return Z;
     }
 }
+
+void Layer::compute_dz()
+{
+    switch (activation_type)
+    {
+        case Activation::RELU:
+            dZ = dA.hadamard(Z.drelu());
+            break;
+        case Activation::LINEAR:
+            dZ = dA;
+            break;
+        case Activation::SOFTMAX:
+            // dZ already computed in MetricsHandler::compute_loss_gradient
+            break;
+        case Activation::SIGMOID:
+            // TODO
+            break;
+    }
+}
+
+// Gradient clipping
+
+double Layer::get_sq_grad_sum() const
+{
+    return dW.sum_of_squares() + db.sum_of_squares() + dgamma.sum_of_squares() + dbeta.sum_of_squares();
+}
+
+void Layer::scale_gradients(double scale)
+{
+    dW *= scale;
+    db *= scale;
+    dgamma *= scale;
+    dbeta *= scale;
+}
+

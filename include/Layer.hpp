@@ -6,7 +6,9 @@
 
 class Layer
 {
-    protected:
+    private:
+        Mode mode = Mode::TRAIN;
+
         size_t input_size;
         size_t output_size;
 
@@ -16,6 +18,7 @@ class Layer
         Matrix b;
         Matrix W;
         Matrix Z;
+        Matrix Z_norm;
 
         Matrix dA;
         Matrix db;
@@ -24,6 +27,20 @@ class Layer
 
         Matrix vb;
         Matrix vW;
+        Matrix vGamma;
+        Matrix vBeta;
+
+        // Batch Norm parameters
+        Matrix gamma;
+        Matrix beta;
+        Matrix dgamma;
+        Matrix dbeta;
+
+        Matrix running_mean;
+        Matrix running_var;
+
+        Matrix batch_mean;
+        Matrix batch_var;
 
         const Matrix* prev_A;
         Matrix* prev_dA;
@@ -34,6 +51,7 @@ class Layer
 
         void init_weights(InitType init_type);
         void connect_prev(const Layer& prev);
+        void set_mode(Mode m) { mode = m; }
 
         // Getters
         const Matrix& getA() const;
@@ -63,15 +81,21 @@ class Layer
         void setb(const Matrix& bias) { b = bias; }
         void setvW(const Matrix& vw) { vW = vw; }
         void setvb(const Matrix& vbias) { vb = vbias; }
+        
+        void compute_dz();
 
         void forward();
         void backprop();
 
         void step(double lr, double beta);
 
+        // Gradient clipping
+        double get_sq_grad_sum() const;
+        void scale_gradients(double scale);
+
     private:
-        void backprop_relu();
-        void backprop_softmax();
-        void backprop_linear();
-        Matrix activation(const Matrix& Z);
+        void batch_norm_forward();
+        void batch_norm_backprop();
+
+        Matrix activation();
 };
