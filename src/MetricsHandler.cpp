@@ -19,20 +19,9 @@ void MetricsHandler::compute_loss_gradient(Layer& last_layer, const std::vector<
     {
         case Loss::CROSS_ENTROPY:
         {
-            Matrix dZ = prediction;
-
-            for (size_t i = 0; i < batch_size; i++)
-            {
-                size_t label = labels[i];
-                double weight = class_weights[label];
-
-                double v = dZ.get(label, i);
-                dZ.set(label, i, v - 1.0);
-                dZ.multiply_col(i, weight);
-            }
-
-            dZ /= batch_size;
-            last_layer.set_dZ(dZ);
+            if (last_layer.get_activation() == Activation::SOFTMAX) 
+                 compute_ce_softmax_gradient(last_layer, labels, class_weights);
+            else compute_ce_general_gradient(last_layer, labels, class_weights);
             break;
         }
         case Loss::MSE:
@@ -123,4 +112,46 @@ size_t MetricsHandler::count_correct_predictions(const Matrix& prediction, const
     }
 
     return correct;
+}
+
+void MetricsHandler::compute_ce_softmax_gradient(Layer& last_layer, const std::vector<size_t>& labels, const std::vector<double>& class_weights)
+{
+    Matrix dZ = last_layer.getA();
+    const size_t batch_size = dZ.cols();
+
+    for (size_t i = 0; i < batch_size; i++)
+    {
+        size_t label = labels[i];
+        double weight = class_weights[label];
+
+        double v = dZ.get(label, i);
+        dZ.set(label, i, v - 1.0);
+        dZ.multiply_col(i, weight);
+    }
+
+    dZ /= batch_size;
+    last_layer.set_dZ(dZ);
+}
+
+void MetricsHandler::compute_ce_general_gradient(Layer& last_layer, const std::vector<size_t>& labels, const std::vector<double>& class_weights)
+{
+    const Matrix& prediction = last_layer.getA();
+    const size_t batch_size = prediction.cols();
+    const size_t num_classes = prediction.rows();
+
+    Matrix dA(num_classes, batch_size);
+
+    for (size_t i = 0; i < batch_size; i++)
+    {
+        size_t label = labels[i];
+        double weight = class_weights[label];
+        
+        double pred = prediction.get(label, i);
+        if (pred < 1e-10) pred = 1e-10;
+
+        dA.set(label, i, -weight / pred);
+    }
+
+    dA /= batch_size;
+    last_layer.set_dA(dA);
 }

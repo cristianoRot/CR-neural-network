@@ -15,7 +15,7 @@ int main()
             Layer(64, 32, Activation::RELU),
             Layer(32, 10,  Activation::SOFTMAX)
         },
-        0.001,
+        0.1,
         InitType::He,
         Loss::CROSS_ENTROPY
     );

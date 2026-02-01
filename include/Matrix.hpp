@@ -48,6 +48,9 @@ class Matrix
         Matrix relu() const;
         Matrix drelu() const;
 
+        Matrix sigmoid() const;
+        Matrix dsigmoid() const;
+
         Matrix softmax() const;
 
         // Operations

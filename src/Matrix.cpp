@@ -212,6 +212,31 @@ Matrix Matrix::drelu() const
     return drelu;
 }
 
+Matrix Matrix::sigmoid() const
+{
+    Matrix sig = Matrix(rows_, cols_);
+
+    for (size_t i = 0; i < rows_ * cols_; i++)
+    {
+        sig.data[i] = 1.0 / (1.0 + std::exp(-data[i]));
+    }
+
+    return sig;
+}
+
+Matrix Matrix::dsigmoid() const
+{
+    Matrix dsig = Matrix(rows_, cols_);
+
+    for (size_t i = 0; i < rows_ * cols_; i++)
+    {
+        double s = 1.0 / (1.0 + std::exp(-data[i]));
+        dsig.data[i] = s * (1.0 - s);
+    }
+
+    return dsig;
+}
+
 Matrix Matrix::softmax() const
 {
     Matrix softmax(rows_, cols_);
@@ -264,7 +289,7 @@ void Matrix::add_col_vector(const Matrix& b)
     // Add vector b to each column of the matrix
     for (size_t c = 0; c < cols_; c++)
     {
-        vDSP_vaddD(&data[c], cols_, b.data.data(), 0, &data[c], cols_, rows_);
+        vDSP_vaddD(&data[c], cols_, b.data.data(), 1, &data[c], cols_, rows_);
     }
 }
 
@@ -283,7 +308,7 @@ void Matrix::mul_col_vector(const Matrix& b)
     // For each column c: data[:,c] *= b
     for (size_t c = 0; c < cols_; c++)
     {
-        vDSP_vmulD(&data[c], cols_, b.data.data(), 0, &data[c], cols_, rows_);
+        vDSP_vmulD(&data[c], cols_, b.data.data(), 1, &data[c], cols_, rows_);
     }
 }
 
@@ -297,7 +322,8 @@ void Matrix::multiply_col(size_t col_idx, double scalar)
     vDSP_vsmulD(&data[col_idx], cols_, &scalar, &data[col_idx], cols_, rows_);
 }
 
-Matrix Matrix::normalize(const Matrix& mean, const Matrix& var) const {
+Matrix Matrix::normalize(const Matrix& mean, const Matrix& var) const 
+{
     const double epsilon = 1e-5;
     Matrix result(rows_, cols_);
     result.data = data; // Start copy
@@ -316,20 +342,19 @@ Matrix Matrix::normalize(const Matrix& mean, const Matrix& var) const {
     return result;
 }
 
-Matrix Matrix::normalize_derivative(const Matrix& mean, const Matrix& var, const Matrix& z_norm) const {
-    const double epsilon = 1e-5;
+Matrix Matrix::normalize_derivative(const Matrix& mean, const Matrix& var, const Matrix& z_norm) const 
+{
+    const double epsilon = 1e-5; 
+    
     Matrix dZ(rows_, cols_);
     size_t B = cols_;
-    double inv_B = 1.0 / B;
     double m_val = static_cast<double>(B);
 
     for (size_t r = 0; r < rows_; r++) {
         double v = var.get(r, 0);
-        double std = std::sqrt(v + epsilon);
-        double inv_std = 1.0 / std;
-        double scale = inv_std * inv_B; // 1/(m*sigma)
-
-        // data pointers for this row
+        double inv_std = 1.0 / std::sqrt(v + epsilon);
+        double scale = inv_std / static_cast<double>(B); // Divide by Mass (Batch Size) 
+        
         const double* dy_row = &data[r * cols_]; 
         const double* x_hat_row = &z_norm.data[r * cols_];
         double* dx_row = &dZ.data[r * cols_];
@@ -342,21 +367,24 @@ Matrix Matrix::normalize_derivative(const Matrix& mean, const Matrix& var, const
         double sum_dy_xhat = 0.0;
         vDSP_dotprD(dy_row, 1, x_hat_row, 1, &sum_dy_xhat, cols_);
 
-        // 3. Compute dx
-        // dx = m * dy
+        // 3. Formula: dx = scale * (m * dy - sum_dy - x_hat * sum_dy_xhat)
+        
+        // A. dx = m * dy
         vDSP_vsmulD(dy_row, 1, &m_val, dx_row, 1, cols_);
 
-        // dx = dx - sum_dy
+        // B. dx = dx - sum_dy
         double neg_sum_dy = -sum_dy;
         vDSP_vsaddD(dx_row, 1, &neg_sum_dy, dx_row, 1, cols_);
 
-        // dx = dx - x_hat * sum_dy_xhat
+        // C. dx = dx - (x_hat * sum_dy_xhat)
+        // Nota: vsmaD calcola (A * B) + C. Qui usiamo x_hat * (-sum) + dx
         double neg_sum_dy_xhat = -sum_dy_xhat;
         vDSP_vsmaD(x_hat_row, 1, &neg_sum_dy_xhat, dx_row, 1, dx_row, 1, cols_);
 
-        // dx = dx * scale
+        // D. dx = dx * scale
         vDSP_vsmulD(dx_row, 1, &scale, dx_row, 1, cols_);
     }
+    
     return dZ;
 }
 

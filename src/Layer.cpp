@@ -5,6 +5,7 @@
 #include "Matrix.hpp"
 #include "RNG.hpp"
 #include <cmath>
+#include <cstddef>
 
 // Constructor
 
@@ -150,17 +151,19 @@ void Layer::backprop()
     compute_dz();
     batch_norm_backprop();
 
+    size_t batch_size = dZ.cols();
+
     dW = dZ * prev_A->transpose();
     db = dZ.sum_columns();
-
-    if (prev_dA == nullptr) return;
     
-    Matrix temp = W.transpose() * dZ;
-    *prev_dA = temp;
+    if (prev_dA == nullptr) return;
+    *prev_dA = W.transpose() * dZ;
 }
 
 void Layer::batch_norm_forward()
 {
+    if (mode == Mode::TRAIN && Z.cols() <= 1) return; // batch size must be > 1
+
     switch (mode)
     {
         case Mode::TRAIN:
@@ -186,11 +189,12 @@ void Layer::batch_norm_forward()
 
 void Layer::batch_norm_backprop()
 {
+    if (Z.cols() <= 1) return; // batch size must be > 1
     if (mode != Mode::TRAIN) return;
 
     dgamma = dZ.hadamard(Z_norm).sum_columns();
     dbeta = dZ.sum_columns();
-    
+
     dZ.mul_col_vector(gamma);
     dZ = dZ.normalize_derivative(batch_mean, batch_var, Z_norm);
 }
@@ -206,8 +210,7 @@ Matrix Layer::activation()
         case Activation::LINEAR:
             return Z;
         case Activation::SIGMOID:
-            // TODO: Implement sigmoid activation
-            return Z;
+            return Z.sigmoid();
     }
 }
 
@@ -225,7 +228,7 @@ void Layer::compute_dz()
             // dZ already computed in MetricsHandler::compute_loss_gradient
             break;
         case Activation::SIGMOID:
-            // TODO
+            dZ = dA.hadamard(Z.dsigmoid());
             break;
     }
 }

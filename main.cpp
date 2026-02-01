@@ -12,14 +12,14 @@ int main()
     Network network(
         {
             Layer(2, 4, Activation::RELU),
-            Layer(4, 2, Activation::SOFTMAX)
+            Layer(4, 1, Activation::SIGMOID)
         },
-        0.01,
+        0.1,
         InitType::He,
-        Loss::CROSS_ENTROPY
+        Loss::MSE
     );
     
-    network.train(dataset, 100, 1);
+    network.train(dataset, 10, 1);
     network.save("models/xor_model.crnn");
     
     return 0;
