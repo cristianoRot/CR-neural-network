@@ -181,7 +181,7 @@ Matrix Matrix::transpose() const
 {
     Matrix trans = Matrix(cols_, rows_);
 
-    vDSP_mtransD(data.data(), 1, trans.data.data(), 1, rows_, cols_);
+    vDSP_mtransD(data.data(), 1, trans.data.data(), 1, cols_, rows_);
 
     return trans;
 }
@@ -324,7 +324,7 @@ void Matrix::multiply_col(size_t col_idx, double scalar)
 
 Matrix Matrix::normalize(const Matrix& mean, const Matrix& var) const 
 {
-    const double epsilon = 1e-5;
+    const double epsilon = 1e-8;
     Matrix result(rows_, cols_);
     result.data = data; // Start copy
 
@@ -344,7 +344,7 @@ Matrix Matrix::normalize(const Matrix& mean, const Matrix& var) const
 
 Matrix Matrix::normalize_derivative(const Matrix& mean, const Matrix& var, const Matrix& z_norm) const 
 {
-    const double epsilon = 1e-5; 
+    const double epsilon = 1e-8; 
     
     Matrix dZ(rows_, cols_);
     size_t B = cols_;

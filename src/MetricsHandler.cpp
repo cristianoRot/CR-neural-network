@@ -34,12 +34,24 @@ void MetricsHandler::compute_loss_gradient(Layer& last_layer, const std::vector<
                 size_t label = labels[i];
                 double weight = class_weights[label];
                 
-                for (size_t cls = 0; cls < num_classes; ++cls)
+                if (num_classes == 1)
                 {
-                    double target = (cls == label) ? 1.0 : 0.0;
-                    double pred   = prediction.get(cls, i);
-                    double diff   = pred - target;
-                    dLoss_dA.set(cls, i, 2.0 * diff * weight);
+                    // Binary: Target = Label
+                    double target = static_cast<double>(label);
+                    double pred = prediction.get(0, i);
+                    double diff = pred - target;
+                    dLoss_dA.set(0, i, 2.0 * diff * weight);
+                }
+                else
+                {
+                    // Multi-class: One-Hot
+                    for (size_t cls = 0; cls < num_classes; ++cls)
+                    {
+                        double target = (cls == label) ? 1.0 : 0.0;
+                        double pred   = prediction.get(cls, i);
+                        double diff   = pred - target;
+                        dLoss_dA.set(cls, i, 2.0 * diff * weight);
+                    }
                 }
             }
 
@@ -78,15 +90,26 @@ double MetricsHandler::accumulate_loss(const Matrix& prediction, const std::vect
             {
                 size_t label = labels[i];
                 double weight = class_weights[label];
-
                 double mse_sample = 0.0;
 
-                for (size_t cls = 0; cls < C; ++cls)
+                if (C == 1)
                 {
-                    double target = (cls == label) ? 1.0 : 0.0;
-                    double pred   = prediction.get(cls, i);
-                    double diff   = pred - target;
-                    mse_sample   += weight * diff * diff;
+                    // Binary: Target = Label (0 or 1)
+                    double target = static_cast<double>(label);
+                    double pred = prediction.get(0, i);
+                    double diff = pred - target;
+                    mse_sample = weight * diff * diff;
+                }
+                else
+                {
+                    // Multi-class: One-Hot
+                    for (size_t cls = 0; cls < C; ++cls)
+                    {
+                        double target = (cls == label) ? 1.0 : 0.0;
+                        double pred   = prediction.get(cls, i);
+                        double diff   = pred - target;
+                        mse_sample   += weight * diff * diff;
+                    }
                 }
 
                 batch_loss += mse_sample;
@@ -101,14 +124,26 @@ double MetricsHandler::accumulate_loss(const Matrix& prediction, const std::vect
 size_t MetricsHandler::count_correct_predictions(const Matrix& prediction, const std::vector<size_t>& labels)
 {
     size_t correct = 0;
+    const size_t rows = prediction.rows();
     const size_t B = prediction.cols();
 
     for (size_t i = 0; i < B; i++)
     {
         size_t label = labels[i];
-        size_t argmax = prediction.argmax_col(i);
 
-        if (argmax == label) correct++;
+        if (rows == 1)
+        {
+            // Binary classification (0.5 threshold)
+            double val = prediction.get(0, i);
+            size_t pred_label = val > 0.5 ? 1 : 0;
+            if (pred_label == label) correct++;
+        }
+        else
+        {
+            // Multi-class
+            size_t argmax = prediction.argmax_col(i);
+            if (argmax == label) correct++;
+        }
     }
 
     return correct;

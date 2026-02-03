@@ -28,13 +28,10 @@ class Layer
         Matrix vb;
         Matrix vW;
         Matrix vGamma;
-        Matrix vBeta;
 
         // Batch Norm parameters
         Matrix gamma;
-        Matrix beta;
         Matrix dgamma;
-        Matrix dbeta;
 
         Matrix running_mean;
         Matrix running_var;
@@ -45,8 +42,10 @@ class Layer
         const Matrix* prev_A;
         Matrix* prev_dA;
         
+        bool use_batch_norm;
+
     public:
-        Layer(size_t input_size, size_t output_size, Activation activation_type);
+        Layer(size_t input_size, size_t output_size, Activation activation_type, bool use_batch_norm = true);
         ~Layer() = default;
 
         void init_weights(InitType init_type);
@@ -81,7 +80,7 @@ class Layer
         void setb(const Matrix& bias) { b = bias; }
         void setvW(const Matrix& vw) { vW = vw; }
         void setvb(const Matrix& vbias) { vb = vbias; }
-        
+
         void compute_dz();
 
         void forward();

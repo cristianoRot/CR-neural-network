@@ -15,12 +15,12 @@ int main()
             Layer(64, 32, Activation::RELU),
             Layer(32, 10,  Activation::SOFTMAX)
         },
-        0.1,
+        0.3,
         InitType::He,
         Loss::CROSS_ENTROPY
     );
     
-    network.train(dataset, 100, 32);
+    network.train(dataset, 100, 64);
     network.save("models/mnist_model.crnn");
     
     return 0;

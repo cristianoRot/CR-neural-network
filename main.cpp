@@ -19,7 +19,7 @@ int main()
         Loss::MSE
     );
     
-    network.train(dataset, 10, 1);
+    network.train(dataset, 100, 4);
     network.save("models/xor_model.crnn");
     
     return 0;

@@ -9,10 +9,11 @@
 
 // Constructor
 
-Layer::Layer(size_t input_size, size_t output_size, Activation activation_type) :
+Layer::Layer(size_t input_size, size_t output_size, Activation activation_type, bool use_batch_norm) :
     input_size(input_size),
     output_size(output_size),
     activation_type(activation_type),
+    use_batch_norm(use_batch_norm),
 
     A(),
     b(output_size, 1), 
@@ -27,9 +28,7 @@ Layer::Layer(size_t input_size, size_t output_size, Activation activation_type) 
 
     // Batch Norm parameters
     gamma(output_size, 1),
-    beta(output_size, 1),
     dgamma(output_size, 1),
-    dbeta(output_size, 1),
 
     running_mean(output_size, 1),
     running_var(output_size, 1),
@@ -37,7 +36,6 @@ Layer::Layer(size_t input_size, size_t output_size, Activation activation_type) 
     vW(output_size, input_size),
     vb(output_size, 1),
     vGamma(output_size, 1),
-    vBeta(output_size, 1),
 
     prev_A(nullptr),
     prev_dA(nullptr)
@@ -67,11 +65,11 @@ void Layer::step(double lr, double momentum)
     W -= vW * lr;
     b -= vb * lr;
 
-    vGamma = (vGamma * momentum) + dgamma;
-    vBeta  = (vBeta * momentum)  + dbeta;
-
-    gamma -= vGamma * lr;
-    beta  -= vBeta * lr;
+    if (use_batch_norm)
+    {
+        vGamma = (vGamma * momentum) + dgamma;
+        gamma -= vGamma * lr;
+    }
 }
 
 
@@ -100,11 +98,9 @@ void Layer::init_weights(InitType init_type)
     vW.fill(0.0);
     vb.fill(0.0);
     vGamma.fill(0.0);
-    vBeta.fill(0.0);
     
     // Batch Norm initialization
     gamma.fill(1.0);
-    beta.fill(0.0);
     running_mean.fill(0.0);
     running_var.fill(1.0);
 
@@ -139,9 +135,13 @@ void Layer::init_weights(InitType init_type)
 void Layer::forward()
 {
     Z = W * (*prev_A);
-    Z.add_col_vector(b);
     
-    batch_norm_forward();
+    bool apply_bn = use_batch_norm && !(mode == Mode::TRAIN && Z.cols() <= 1);
+    
+    if (apply_bn)
+        batch_norm_forward();
+    else 
+        Z.add_col_vector(b);
 
     A = activation();
 }
@@ -149,12 +149,17 @@ void Layer::forward()
 void Layer::backprop()
 {
     compute_dz();
-    batch_norm_backprop();
+
+    bool apply_bn = use_batch_norm && !(mode == Mode::TRAIN && Z.cols() <= 1);
+    
+    if (apply_bn)
+        batch_norm_backprop();
+    else
+        db = dZ.sum_columns();
 
     size_t batch_size = dZ.cols();
 
     dW = dZ * prev_A->transpose();
-    db = dZ.sum_columns();
     
     if (prev_dA == nullptr) return;
     *prev_dA = W.transpose() * dZ;
@@ -184,7 +189,7 @@ void Layer::batch_norm_forward()
 
     Z = Z_norm; 
     Z.mul_col_vector(gamma);
-    Z.add_col_vector(beta);
+    Z.add_col_vector(b);
 }
 
 void Layer::batch_norm_backprop()
@@ -193,7 +198,7 @@ void Layer::batch_norm_backprop()
     if (mode != Mode::TRAIN) return;
 
     dgamma = dZ.hadamard(Z_norm).sum_columns();
-    dbeta = dZ.sum_columns();
+    db = dZ.sum_columns();
 
     dZ.mul_col_vector(gamma);
     dZ = dZ.normalize_derivative(batch_mean, batch_var, Z_norm);
@@ -237,14 +242,21 @@ void Layer::compute_dz()
 
 double Layer::get_sq_grad_sum() const
 {
-    return dW.sum_of_squares() + db.sum_of_squares() + dgamma.sum_of_squares() + dbeta.sum_of_squares();
+    double sum = dW.sum_of_squares() + db.sum_of_squares();
+    if (use_batch_norm)
+    {
+        sum += dgamma.sum_of_squares();
+    }
+    return sum;
 }
 
 void Layer::scale_gradients(double scale)
 {
     dW *= scale;
     db *= scale;
-    dgamma *= scale;
-    dbeta *= scale;
+    if (use_batch_norm)
+    {
+        dgamma *= scale;
+    }
 }
 
