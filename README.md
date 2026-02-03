@@ -9,8 +9,10 @@ A lightweight, high-performance neural network library implemented in C++17. Des
 - **Loss Functions**: Cross-Entropy, Mean Squared Error (MSE)
 - **Weight Initialization**: Zero, Random, He initialization
 - **Optimization**: Momentum-based gradient descent
+- **Batch Normalization**: Supported with correct train/eval mode handling
 - **Learning Rate Scheduling**: Automatic reduction on plateau
-- **Model Persistence**: Save and load trained models
+- **Model Persistence**: Robust binary save/load system handling all parameters
+- **Separate Datasets**: Dedicated support for Training, Evaluation, and Test sets
 - **Real-time Training Visualization**: Live loss and accuracy graphs
 - **CSV Dataset Support**: Easy data loading from CSV files
 - **Batch Training**: Efficient batch processing for improved performance
@@ -53,8 +55,9 @@ make run
 ### Results
 
 Trained on MNIST dataset with the following results:
-- **Training Accuracy**: 99.1983%
-- **Test Accuracy**: 95.39%
+- **Training Accuracy**: 99.9960%
+- **Evaluation Accuracy**: 98.5000%
+- **Test Accuracy**: 98.50%
 
 ### Dataset Preparation
 
@@ -182,11 +185,13 @@ The network automatically reduces the learning rate when accuracy plateaus:
 ### Model Checkpointing
 
 The best model (highest accuracy) is automatically saved to:
-- `checkpoints/model.crnn`
+- `checkpoints/best_model.crnn` - Model with best evaluation accuracy
+- `checkpoints/last_model.crnn` - Model state at the last epoch
 
 You can also manually save models:
 ```cpp
 network.save("path/to/model.crnn");
+network.save_best("path/to/save_best_model.crnn"); // Copies from checkpoints/best_model.crnn
 ```
 
 ## File Structure

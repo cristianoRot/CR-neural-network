@@ -6,6 +6,7 @@
 #include "ModelIO.hpp"
 #include "MetricsHandler.hpp"
 #include <cstddef>
+#include <fstream>
 #include <string>
 
 Network::Network(std::vector<Layer> layers_param, double learning_rate, InitType init_type, Loss loss_type)
@@ -35,6 +36,10 @@ Network::Network(std::vector<Layer> layers_param, double learning_rate, InitType
     init_weights(init_type);
 }
 
+Network::Network(const std::string& filepath)
+    : optimizer(0.0)
+{ load(filepath); }
+
 // Init weights
 
 void Network::init_weights(InitType init_type)
@@ -55,27 +60,31 @@ Metrics Network::eval(Dataset& dataset)
     return do_pass(dataset, 1);
 }
 
-void Network::train(Dataset& dataset, size_t epochs, size_t batch_size)
+void Network::train(Dataset& train_dataset, Dataset& eval_dataset, size_t epochs, size_t batch_size)
 {
-    dataset_size = dataset.size();
-    class_weights = dataset.get_class_weight();
-
+    dataset_size = train_dataset.size();
+    class_weights = train_dataset.get_class_weight();
 
     TrainingLogger logger;
 
     for (size_t epoch = 0; epoch <= epochs; epoch++)
     {
         set_mode(Mode::TRAIN);
-        dataset.shuffle();
+        train_dataset.shuffle();
 
-        Metrics train_metrics = do_pass(dataset, batch_size);
+        Metrics train_metrics = do_pass(train_dataset, batch_size);
         double train_accuracy = train_metrics.accuracy;
         double train_loss = train_metrics.loss;
         
-        Metrics eval_metrics = eval(dataset);
+        Metrics eval_metrics = eval(eval_dataset);
         double eval_accuracy = eval_metrics.accuracy;
         double eval_loss = eval_metrics.loss;
         
+        if (epoch > 0)
+        {
+            save("checkpoints/last_model.crnn");
+        }
+
         logger.log_epoch(epoch, epochs, train_accuracy, train_loss, eval_accuracy, eval_loss);
         optimizer.lr_reduce_on_plateau(eval_accuracy, *this);
     }
@@ -144,4 +153,18 @@ void Network::load(const std::string& filepath)
 void Network::save(const std::string& filepath)
 {
     ModelIO::save_model(*this, filepath);
+}
+
+void Network::save_best(const std::string& filepath)
+{
+    std::ifstream src("checkpoints/best_model.crnn", std::ios::binary);
+    if (src.good())
+    {
+        std::ofstream dst(filepath, std::ios::binary);
+        dst << src.rdbuf();
+    }
+    else
+    {
+        save(filepath);
+    }
 }

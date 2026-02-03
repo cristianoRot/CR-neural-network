@@ -29,14 +29,16 @@ class Network
 
     public:
         Network(std::vector<Layer> layers, double learning_rate, InitType init_type, Loss loss_type = Loss::CROSS_ENTROPY);
+        Network(const std::string& filepath);
 
         void init_weights(InitType init_type);
         void load(const std::string& filepath);
         void save(const std::string& filepath);
+        void save_best(const std::string& filepath);
         const Matrix& get_output() const;
 
         Metrics eval(Dataset& dataset);
-        void train(Dataset& dataset, size_t epochs, size_t batch_size);
+        void train(Dataset& train_dataset, Dataset& eval_dataset, size_t epochs, size_t batch_size);
         
         void forward(const Matrix& input);
         void backprop(const std::vector<size_t>& labels);
@@ -57,6 +59,7 @@ class Network
         
         // Model I/O setters
         void set_mode(Mode m) { mode = m; }
+        void set_loss_type(Loss l) { loss_type = l; }
         
         // Proxy setters for Optimizer
         void set_learning_rate(double lr) { optimizer.set_learning_rate(lr); }

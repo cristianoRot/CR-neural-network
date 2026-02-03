@@ -1,11 +1,20 @@
 #include "ModelIO.hpp"
 #include "Network.hpp"
+#include "Layer.hpp"
+#include "Matrix.hpp"
 #include <iostream>
-#include <iomanip>
 #include <stdexcept>
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <string>
+#include <cstring>
+
+static bool file_exists(const std::string& name) {
+    struct stat buffer;
+    return (stat(name.c_str(), &buffer) == 0);
+}
+
+// ---------------------------------------------------------
+// Matrix I/O
+// ---------------------------------------------------------
 
 void ModelIO::write_matrix(std::ofstream& file, const Matrix& matrix)
 {
@@ -16,50 +25,75 @@ void ModelIO::write_matrix(std::ofstream& file, const Matrix& matrix)
     file.write(reinterpret_cast<const char*>(&cols), sizeof(size_t));
     
     const std::vector<double>& data = matrix.get_data();
-    file.write(reinterpret_cast<const char*>(data.data()), rows * cols * sizeof(double));
+    
+    if (data.size() != rows * cols) throw std::runtime_error("Matrix data size mismatch");
+    
+    file.write(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(double));
 }
 
 Matrix ModelIO::read_matrix(std::ifstream& file)
 {
     size_t rows, cols;
-    
     file.read(reinterpret_cast<char*>(&rows), sizeof(size_t));
     file.read(reinterpret_cast<char*>(&cols), sizeof(size_t));
     
+    if (file.fail() || rows == 0 || cols == 0 || rows > 100000 || cols > 100000) {
+        throw std::runtime_error("Invalid matrix dimensions");
+    }
+    
     std::vector<double> data(rows * cols);
-    file.read(reinterpret_cast<char*>(data.data()), rows * cols * sizeof(double));
+    file.read(reinterpret_cast<char*>(data.data()), data.size() * sizeof(double));
+    
+    if (file.fail()) throw std::runtime_error("Failed to read matrix data.");
     
     return Matrix(rows, cols, data);
 }
 
+// ---------------------------------------------------------
+// Layer I/O
+// ---------------------------------------------------------
+
 void ModelIO::write_layer(std::ofstream& file, const Layer& layer)
 {
-    size_t input_size = layer.get_input_size();
-    size_t output_size = layer.get_output_size();
-    int activation = static_cast<int>(layer.get_activation());
+    size_t in = layer.get_input_size();
+    size_t out = layer.get_output_size();
+    int act = static_cast<int>(layer.get_activation());
+    bool bn = layer.is_batch_norm();
     
-    file.write(reinterpret_cast<const char*>(&input_size), sizeof(size_t));
-    file.write(reinterpret_cast<const char*>(&output_size), sizeof(size_t));
-    file.write(reinterpret_cast<const char*>(&activation), sizeof(int));
-    
+    file.write(reinterpret_cast<const char*>(&in), sizeof(size_t));
+    file.write(reinterpret_cast<const char*>(&out), sizeof(size_t));
+    file.write(reinterpret_cast<const char*>(&act), sizeof(int));
+    file.write(reinterpret_cast<const char*>(&bn), sizeof(bool));
+
     write_matrix(file, layer.getW());
     write_matrix(file, layer.getb());
     write_matrix(file, layer.getvW());
     write_matrix(file, layer.getvb());
+    
+    if (bn) {
+        write_matrix(file, layer.get_gamma());
+        write_matrix(file, layer.get_running_mean());
+        write_matrix(file, layer.get_running_var());
+        write_matrix(file, layer.get_vGamma());
+    }
 }
 
 Layer ModelIO::read_layer(std::ifstream& file)
 {
-    size_t input_size, output_size;
-    int activation_int;
+    size_t in, out;
+    int act_int;
+    bool bn;
     
-    file.read(reinterpret_cast<char*>(&input_size), sizeof(size_t));
-    file.read(reinterpret_cast<char*>(&output_size), sizeof(size_t));
-    file.read(reinterpret_cast<char*>(&activation_int), sizeof(int));
+    file.read(reinterpret_cast<char*>(&in), sizeof(size_t));
+    file.read(reinterpret_cast<char*>(&out), sizeof(size_t));
+    file.read(reinterpret_cast<char*>(&act_int), sizeof(int));
+    file.read(reinterpret_cast<char*>(&bn), sizeof(bool));
     
-    Activation activation = static_cast<Activation>(activation_int);
+    if (file.fail()) throw std::runtime_error("Failed to read layer metadata.");
+
+    Activation act = static_cast<Activation>(act_int);
     
-    Layer layer(input_size, output_size, activation);
+    Layer layer(in, out, act, bn);
     
     Matrix W = read_matrix(file);
     Matrix b = read_matrix(file);
@@ -71,175 +105,157 @@ Layer ModelIO::read_layer(std::ifstream& file)
     layer.setvW(vW);
     layer.setvb(vb);
     
+    if (bn) {
+        Matrix gamma = read_matrix(file);
+        Matrix rm = read_matrix(file);
+        Matrix rv = read_matrix(file);
+        Matrix vGamma = read_matrix(file);
+        
+        layer.set_gamma(gamma);
+        layer.set_running_mean(rm);
+        layer.set_running_var(rv);
+        layer.set_vGamma(vGamma);
+    }
+    
     return layer;
 }
 
+// ---------------------------------------------------------
+// Network I/O
+// ---------------------------------------------------------
+
 void ModelIO::save_model(const Network& network, const std::string& filepath)
 {
+    // Create directory if needed (simple check)
     size_t last_slash = filepath.find_last_of("/\\");
-    if (last_slash != std::string::npos)
-    {
+    if (last_slash != std::string::npos) {
         std::string dir = filepath.substr(0, last_slash);
         struct stat info;
-        if (stat(dir.c_str(), &info) != 0)
-        {
-            std::string mkdir_cmd = "mkdir -p " + dir;
-            int result = system(mkdir_cmd.c_str());
-            if (result != 0)
-            {
-                throw std::runtime_error("Error: Cannot create directory: " + dir);
-            }
+        if (stat(dir.c_str(), &info) != 0) {
+            std::string cmd = "mkdir -p " + dir;
+            system(cmd.c_str());
         }
     }
-    
+
     std::ofstream file(filepath, std::ios::binary);
-    if (!file.is_open())
-    {
-        throw std::runtime_error("Error: Cannot open file for writing: " + filepath);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file for writing: " + filepath);
     }
+
+    file.write(MAGIC_HEADER, strlen(MAGIC_HEADER));
+    int version = MODEL_VERSION;
+    file.write(reinterpret_cast<const char*>(&version), sizeof(int));
+
+    int loss = static_cast<int>(network.get_loss_type());
+    size_t num_layers = network.get_layers().size();
     
-    if (!file.good())
-    {
-        file.close();
-        throw std::runtime_error("Error: File stream is not in good state: " + filepath);
-    }
-    
-    const std::vector<Layer>& layers = network.get_layers();
-    size_t num_layers = layers.size();
-    
+    file.write(reinterpret_cast<const char*>(&loss), sizeof(int));
     file.write(reinterpret_cast<const char*>(&num_layers), sizeof(size_t));
     
-    for (const auto& layer : layers)
-    {
-        write_layer(file, layer);
-    }
-    
-    int loss_type_int = static_cast<int>(network.get_loss_type());
-    double learning_rate = network.get_learning_rate();
-    double best_accuracy = network.get_best_accuracy();
+    double lr = network.get_learning_rate();
+    double best_acc = network.get_best_accuracy();
     size_t patience = network.get_patience();
     double factor = network.get_factor();
     double min_lr = network.get_min_lr();
     double min_delta = network.get_min_delta();
-    
-    file.write(reinterpret_cast<const char*>(&loss_type_int), sizeof(int));
-    file.write(reinterpret_cast<const char*>(&learning_rate), sizeof(double));
-    file.write(reinterpret_cast<const char*>(&best_accuracy), sizeof(double));
+
+    file.write(reinterpret_cast<const char*>(&lr), sizeof(double));
+    file.write(reinterpret_cast<const char*>(&best_acc), sizeof(double));
     file.write(reinterpret_cast<const char*>(&patience), sizeof(size_t));
     file.write(reinterpret_cast<const char*>(&factor), sizeof(double));
     file.write(reinterpret_cast<const char*>(&min_lr), sizeof(double));
     file.write(reinterpret_cast<const char*>(&min_delta), sizeof(double));
-    
-    if (!file.good())
-    {
-        file.close();
-        throw std::runtime_error("Error: Failed to write data to file: " + filepath);
+
+    for (const auto& layer : network.get_layers()) {
+        write_layer(file, layer);
     }
-    
+
     file.close();
-    
-    if (!file.good() && !file.eof())
-    {
-        throw std::runtime_error("Error: Failed to close file properly: " + filepath);
-    }
-    
-    std::cout << "Model saved to: " << filepath << std::endl;
 }
 
 void ModelIO::load_model(Network& network, const std::string& filepath)
 {
-    struct stat info;
-    if (stat(filepath.c_str(), &info) != 0)
-    {
-        throw std::runtime_error("Error: File does not exist: " + filepath);
-    }
-    
+    if (!file_exists(filepath)) throw std::runtime_error("File not found: " + filepath);
+
     std::ifstream file(filepath, std::ios::binary);
-    if (!file.is_open())
-    {
-        throw std::runtime_error("Error: Cannot open file for reading: " + filepath);
-    }
+    if (!file.is_open()) throw std::runtime_error("Cannot open file for reading: " + filepath);
+
+    char magic[16];
+    memset(magic, 0, 16);
+    file.read(magic, strlen(MAGIC_HEADER));
+    if (strcmp(magic, MAGIC_HEADER) != 0) throw std::runtime_error("Invalid file format");
     
-    if (!file.good())
-    {
-        file.close();
-        throw std::runtime_error("Error: File stream is not in good state: " + filepath);
-    }
-    
+    int version;
+    file.read(reinterpret_cast<char*>(&version), sizeof(int));
+    if (version != MODEL_VERSION) throw std::runtime_error("Unsupported version");
+
+    int loss_int;
     size_t num_layers;
+    
+    file.read(reinterpret_cast<char*>(&loss_int), sizeof(int));
     file.read(reinterpret_cast<char*>(&num_layers), sizeof(size_t));
     
-    if (num_layers != network.get_layers().size())
-    {
-        file.close();
-        throw std::runtime_error("Error: Number of layers mismatch. Expected " + 
-                                 std::to_string(network.get_layers().size()) + ", found " + 
-                                 std::to_string(num_layers));
+    double lr, best_acc, factor, min_lr, min_delta;
+    size_t patience;
+
+    file.read(reinterpret_cast<char*>(&lr), sizeof(double));
+    file.read(reinterpret_cast<char*>(&best_acc), sizeof(double));
+    file.read(reinterpret_cast<char*>(&patience), sizeof(size_t));
+    file.read(reinterpret_cast<char*>(&factor), sizeof(double));
+    file.read(reinterpret_cast<char*>(&min_lr), sizeof(double));
+    file.read(reinterpret_cast<char*>(&min_delta), sizeof(double));
+    
+    Loss loss = static_cast<Loss>(loss_int);
+    
+    bool is_empty = network.get_layers().empty();
+    if (is_empty) {
+        network.set_loss_type(loss);
+    } else if (network.get_loss_type() != loss) {
+        throw std::runtime_error("Loss type mismatch in loaded model.");
     }
     
-    for (size_t i = 0; i < num_layers; i++)
-    {
-        size_t input_size, output_size;
-        int activation_int;
-        
-        file.read(reinterpret_cast<char*>(&input_size), sizeof(size_t));
-        file.read(reinterpret_cast<char*>(&output_size), sizeof(size_t));
-        file.read(reinterpret_cast<char*>(&activation_int), sizeof(int));
-        
-        if (input_size != network.get_layers()[i].get_input_size() || 
-            output_size != network.get_layers()[i].get_output_size() ||
-            static_cast<Activation>(activation_int) != network.get_layers()[i].get_activation())
-        {
-            file.close();
-            throw std::runtime_error("Error: Layer " + std::to_string(i) + " architecture mismatch");
+    network.set_learning_rate(lr);
+    network.set_best_accuracy(best_acc);
+    network.set_patience(patience);
+    network.set_factor(factor);
+    network.set_min_lr(min_lr);
+    network.set_min_delta(min_delta);
+
+    if (is_empty) {
+        for (size_t i = 0; i < num_layers; ++i) {
+            network.get_layers().push_back(read_layer(file));
         }
+        for (size_t i = 1; i < network.get_layers().size(); ++i) {
+            network.get_layers()[i].connect_prev(network.get_layers()[i-1]);
+        }
+    } else {
+        if (network.get_layers().size() != num_layers) throw std::runtime_error("Layer count mismatch");
         
-        Matrix W = read_matrix(file);
-        Matrix b = read_matrix(file);
-        Matrix vW = read_matrix(file);
-        Matrix vb = read_matrix(file);
-        
-        network.get_layers()[i].setW(W);
-        network.get_layers()[i].setb(b);
-        network.get_layers()[i].setvW(vW);
-        network.get_layers()[i].setvb(vb);
+        for (size_t i = 0; i < num_layers; ++i) {
+            Layer loaded = read_layer(file);
+            Layer& current = network.get_layers()[i];
+            
+            if (current.get_input_size() != loaded.get_input_size() ||
+                current.get_output_size() != loaded.get_output_size() ||
+                current.get_activation() != loaded.get_activation() ||
+                current.is_batch_norm() != loaded.is_batch_norm()) 
+            {
+                throw std::runtime_error("Layer " + std::to_string(i) + " architecture mismatch.");
+            }
+            
+            current.setW(loaded.getW());
+            current.setb(loaded.getb());
+            current.setvW(loaded.getvW());
+            current.setvb(loaded.getvb());
+            
+            if (current.is_batch_norm()) {
+                current.set_gamma(loaded.get_gamma());
+                current.set_running_mean(loaded.get_running_mean());
+                current.set_running_var(loaded.get_running_var());
+                current.set_vGamma(loaded.get_vGamma());
+            }
+        }
     }
-    
-    int loss_type_int;
-    double loaded_learning_rate;
-    double loaded_best_accuracy;
-    size_t loaded_patience;
-    double loaded_factor;
-    double loaded_min_lr;
-    double loaded_min_delta;
-    
-    file.read(reinterpret_cast<char*>(&loss_type_int), sizeof(int));
-    file.read(reinterpret_cast<char*>(&loaded_learning_rate), sizeof(double));
-    file.read(reinterpret_cast<char*>(&loaded_best_accuracy), sizeof(double));
-    file.read(reinterpret_cast<char*>(&loaded_patience), sizeof(size_t));
-    file.read(reinterpret_cast<char*>(&loaded_factor), sizeof(double));
-    file.read(reinterpret_cast<char*>(&loaded_min_lr), sizeof(double));
-    file.read(reinterpret_cast<char*>(&loaded_min_delta), sizeof(double));
-    
-    if (!file.good() && !file.eof())
-    {
-        file.close();
-        throw std::runtime_error("Error: Failed to read data from file: " + filepath);
-    }
-    
+
     file.close();
-    
-    if (static_cast<Loss>(loss_type_int) != network.get_loss_type())
-    {
-        throw std::runtime_error("Error: Loss type mismatch");
-    }
-    
-    network.set_learning_rate(loaded_learning_rate);
-    network.set_best_accuracy(loaded_best_accuracy);
-    network.set_patience(loaded_patience);
-    network.set_factor(loaded_factor);
-    network.set_min_lr(loaded_min_lr);
-    network.set_min_delta(loaded_min_delta);
-    
-    std::cout << "Model loaded from: " << filepath << std::endl;
 }

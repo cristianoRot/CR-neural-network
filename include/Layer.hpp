@@ -80,6 +80,19 @@ class Layer
         void setb(const Matrix& bias) { b = bias; }
         void setvW(const Matrix& vw) { vW = vw; }
         void setvb(const Matrix& vbias) { vb = vbias; }
+        
+        // Batch Norm & Model I/O helpers
+        bool is_batch_norm() const { return use_batch_norm; }
+        
+        const Matrix& get_gamma() const { return gamma; }
+        const Matrix& get_running_mean() const { return running_mean; }
+        const Matrix& get_running_var() const { return running_var; }
+        const Matrix& get_vGamma() const { return vGamma; }
+
+        void set_gamma(const Matrix& m) { gamma = m; }
+        void set_running_mean(const Matrix& m) { running_mean = m; }
+        void set_running_var(const Matrix& m) { running_var = m; }
+        void set_vGamma(const Matrix& m) { vGamma = m; }
 
         void compute_dz();
 

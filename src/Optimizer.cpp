@@ -48,7 +48,7 @@ void Optimizer::lr_reduce_on_plateau(double current_accuracy, Network& network)
         best_accuracy = current_accuracy;
         patience_counter = 0;
         
-        network.save("checkpoints/model.crnn");
+        network.save("checkpoints/best_model.crnn");
         
         return;
     }
