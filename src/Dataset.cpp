@@ -236,12 +236,19 @@ std::string trim_whitespace(const std::string& s) {
     return s.substr(first, last - first + 1);
 }
 
+std::string trim_quotes(const std::string& s) {
+    if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
+        return s.substr(1, s.size() - 2);
+    }
+    return s;
+}
+
 std::vector<std::string> split(const std::string& s, char delimiter) {
     std::vector<std::string> tokens;
     std::string token;
     std::istringstream tokenStream(s);
     while (std::getline(tokenStream, token, delimiter)) {
-        tokens.push_back(trim_whitespace(token));
+        tokens.push_back(trim_quotes(trim_whitespace(token)));
     }
     return tokens;
 }

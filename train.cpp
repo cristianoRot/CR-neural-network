@@ -6,9 +6,9 @@
 int main() 
 {
     Dataset train_dataset = Dataset::from_csv("data/mnist_train.csv", {"ALL"}, "label");
-    train_dataset.scale(1.0 / 255.0);
-    
     Dataset eval_dataset = Dataset::from_csv("data/mnist_eval.csv", {"ALL"}, "label");
+    
+    train_dataset.scale(1.0 / 255.0);
     eval_dataset.scale(1.0 / 255.0);
 
     RNG::set_seed(42);

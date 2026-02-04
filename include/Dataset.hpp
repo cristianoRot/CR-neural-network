@@ -53,6 +53,7 @@ class Dataset
 // ============================================================================
 
 std::string trim_whitespace(const std::string& s);
+std::string trim_quotes(const std::string& s);
 std::vector<std::string> split(const std::string& s, char delimiter);
 size_t validate_batch_size(size_t start_idx, size_t batch_size, size_t dataset_size);
 size_t parse_output_value(const std::string& value, std::map<std::string, size_t>& class_map, size_t& next_class_index);
