@@ -10,6 +10,7 @@
 struct Metrics {
     double accuracy;
     double loss;
+    Matrix confusion_matrix;
 };
 
 class Network 

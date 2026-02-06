@@ -9,11 +9,12 @@
 
 // Constructor
 
-Layer::Layer(size_t input_size, size_t output_size, Activation activation_type, bool use_batch_norm) :
+Layer::Layer(size_t input_size, size_t output_size, Activation activation_type, double dropout_rate, bool use_batch_norm) :
     input_size(input_size),
     output_size(output_size),
     activation_type(activation_type),
     use_batch_norm(use_batch_norm),
+    dropout_rate(dropout_rate),
 
     A(),
     b(output_size, 1), 
@@ -144,11 +145,24 @@ void Layer::forward()
         Z.add_col_vector(b);
 
     A = activation();
+
+    if (mode != Mode::TRAIN || dropout_rate == 0.0) return;
+
+    double p = 1.0 - dropout_rate;
+    dropout_mask = Matrix::bernoulli(A.rows(), A.cols(), p);
+    A.hadamard_inplace(dropout_mask);
+    A /= p;
 }
 
 void Layer::backprop()
 {
     compute_dz();
+
+    if (dropout_rate > 0)
+    {
+        dZ.hadamard_inplace(dropout_mask);
+        dZ /= (1.0 - dropout_rate);
+    }
 
     bool apply_bn = use_batch_norm && !(mode == Mode::TRAIN && Z.cols() <= 1);
     

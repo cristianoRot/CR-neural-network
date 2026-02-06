@@ -1,6 +1,7 @@
 // matrix.cpp
 
 #include "Matrix.hpp"
+#include "RNG.hpp"
 #include <iostream>
 #include <Accelerate/Accelerate.h>
 
@@ -168,6 +169,15 @@ Matrix Matrix::operator*(const Matrix& other) const
                 static_cast<int>(other.cols_));    // ldc: leading dimension of C
     
     return result;
+}
+
+void Matrix::hadamard_inplace(const Matrix& other)
+{
+    if (rows_ != other.rows_ || cols_ != other.cols_)
+    {
+        throw std::invalid_argument("Matrix dimensions mismatch for hadamard_inplace");
+    }
+    vDSP_vmulD(data.data(), 1, other.data.data(), 1, data.data(), 1, rows_ * cols_);
 }
 
 Matrix Matrix::hadamard(const Matrix& other) const
@@ -447,6 +457,20 @@ Matrix Matrix::variance(const Matrix& mean) const {
         v.set(r, 0, row_var);
     }
     return v;
+}
+
+Matrix Matrix::bernoulli(size_t rows, size_t cols, double p)
+{
+    Matrix result(rows, cols);
+    std::mt19937& gen = RNG::get_engine();
+    std::bernoulli_distribution d(p);
+
+    for (size_t i = 0; i < rows * cols; ++i)
+    {
+        result.data[i] = d(gen) ? 1.0 : 0.0;
+    }
+
+    return result;
 }
 
 void Matrix::print() const

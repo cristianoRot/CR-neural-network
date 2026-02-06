@@ -15,8 +15,8 @@ int main()
 
     Network network(
         {
-            Layer(784, 512, Activation::RELU),
-            Layer(512, 128, Activation::RELU),
+            Layer(784, 512, Activation::RELU, 0.2),
+            Layer(512, 128, Activation::RELU, 0.2),
             Layer(128, 10,  Activation::SOFTMAX)
         },
         0.1,

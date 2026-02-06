@@ -39,13 +39,22 @@ class Layer
         Matrix batch_mean;
         Matrix batch_var;
 
+        // Dropout
+        Matrix dropout_mask;
+        double dropout_rate;
+
         const Matrix* prev_A;
         Matrix* prev_dA;
         
         bool use_batch_norm;
 
     public:
-        Layer(size_t input_size, size_t output_size, Activation activation_type, bool use_batch_norm = true);
+        Layer(size_t input_size, 
+            size_t output_size, 
+            Activation activation_type,
+            double dropout_rate = 0.0, 
+            bool use_batch_norm = true);
+
         ~Layer() = default;
 
         void init_weights(InitType init_type);

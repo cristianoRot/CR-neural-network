@@ -55,9 +55,9 @@ make run
 ### Results
 
 Trained on MNIST dataset with the following results:
-- **Training Accuracy**: 99.9960%
-- **Evaluation Accuracy**: 98.5000%
-- **Test Accuracy**: 98.50%
+- **Training Accuracy**: 99.6880%
+- **Evaluation Accuracy**: 98.5900%
+- **Test Accuracy**: 98.68%
 
 ### Dataset Preparation
 

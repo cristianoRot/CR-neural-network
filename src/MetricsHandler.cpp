@@ -149,6 +149,37 @@ size_t MetricsHandler::count_correct_predictions(const Matrix& prediction, const
     return correct;
 }
 
+void MetricsHandler::update_confusion_matrix(Matrix& confusion_matrix, const Matrix& prediction, const std::vector<size_t>& labels)
+{
+    const size_t batch_size = prediction.cols();
+    const size_t rows = prediction.rows();
+
+    for (size_t i = 0; i < batch_size; i++)
+    {
+        size_t true_label = labels[i];
+        size_t pred_label = 0;
+
+        if (rows == 1)
+        {
+            // Binary classification
+            double val = prediction.get(0, i);
+            pred_label = val > 0.5 ? 1 : 0;
+        }
+        else
+        {
+            // Multi-class
+            pred_label = prediction.argmax_col(i);
+        }
+
+        // Check bounds and update
+        if (true_label < confusion_matrix.rows() && pred_label < confusion_matrix.cols())
+        {
+            double current_val = confusion_matrix.get(true_label, pred_label);
+            confusion_matrix.set(true_label, pred_label, current_val + 1.0);
+        }
+    }
+}
+
 void MetricsHandler::compute_ce_softmax_gradient(Layer& last_layer, const std::vector<size_t>& labels, const std::vector<double>& class_weights)
 {
     Matrix dZ = last_layer.getA();

@@ -41,6 +41,7 @@ class Matrix
         Matrix operator/(double scalar) const;
         Matrix operator*(const Matrix& other) const;
 
+        void hadamard_inplace(const Matrix& other);
         Matrix hadamard(const Matrix& other) const;
         Matrix transpose() const;
 
@@ -66,6 +67,7 @@ class Matrix
 
         Matrix mean() const;
         Matrix variance(const Matrix& mean) const;
+        static Matrix bernoulli(size_t rows, size_t cols, double p);
 
         void print() const;
 };

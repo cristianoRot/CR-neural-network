@@ -97,6 +97,10 @@ Metrics Network::do_pass(Dataset& dataset, size_t batch_size)
     size_t correct_predictions = 0;
     double accumulated_loss = 0.0;
 
+    size_t output_dim = layers.back().get_output_size();
+    size_t matrix_dim = (output_dim == 1) ? 2 : output_dim;
+    Matrix confusion_matrix(matrix_dim, matrix_dim);
+
     for (size_t i = 0; i < dataset.size(); i += batch_size)
     {
         Matrix input = dataset.get_input(i, batch_size);
@@ -108,6 +112,7 @@ Metrics Network::do_pass(Dataset& dataset, size_t batch_size)
         
         accumulated_loss = MetricsHandler::accumulate_loss(pred, labels, accumulated_loss, loss_type, class_weights);
         correct_predictions += MetricsHandler::count_correct_predictions(pred, labels);
+        MetricsHandler::update_confusion_matrix(confusion_matrix, pred, labels);
 
         if (mode == Mode::EVAL) continue;
         
@@ -118,7 +123,7 @@ Metrics Network::do_pass(Dataset& dataset, size_t batch_size)
     double acc = static_cast<double>(correct_predictions) / dataset.size();
     double loss = accumulated_loss / dataset.size();
 
-    return {acc, loss};
+    return {acc, loss, confusion_matrix};
 }
 
 void Network::forward(const Matrix& input_batch)
