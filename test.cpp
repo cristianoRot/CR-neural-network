@@ -13,6 +13,9 @@ int main()
     Metrics metrics = network.eval(dataset);
     double accuracy = metrics.accuracy;
     std::cout << "\033[34mAccuracy: " << accuracy * 100 << "%\033[0m" << std::endl;
+
+    std::cout << "\nConfusion Matrix:\n";
+    metrics.confusion_matrix.print();
     
     return 0;
 }
