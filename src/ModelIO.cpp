@@ -64,6 +64,9 @@ void ModelIO::write_layer(std::ofstream& file, const Layer& layer)
     file.write(reinterpret_cast<const char*>(&out), sizeof(size_t));
     file.write(reinterpret_cast<const char*>(&act), sizeof(int));
     file.write(reinterpret_cast<const char*>(&bn), sizeof(bool));
+    
+    double dropout = layer.get_dropout_rate();
+    file.write(reinterpret_cast<const char*>(&dropout), sizeof(double));
 
     write_matrix(file, layer.getW());
     write_matrix(file, layer.getb());
@@ -93,7 +96,10 @@ Layer ModelIO::read_layer(std::ifstream& file)
 
     Activation act = static_cast<Activation>(act_int);
     
-    Layer layer(in, out, act, bn);
+    double dropout = 0.0;
+    file.read(reinterpret_cast<char*>(&dropout), sizeof(double));
+    
+    Layer layer(in, out, act, dropout, bn);
     
     Matrix W = read_matrix(file);
     Matrix b = read_matrix(file);
@@ -166,6 +172,17 @@ void ModelIO::save_model(const Network& network, const std::string& filepath)
     file.write(reinterpret_cast<const char*>(&min_lr), sizeof(double));
     file.write(reinterpret_cast<const char*>(&min_delta), sizeof(double));
 
+    // V3: Additional Optimizer State + current_epoch
+    double momentum = network.get_momentum();
+    size_t patience_counter = network.get_patience_counter();
+    double clip = network.get_clipping_threshold();
+    size_t epoch = network.get_current_epoch();
+
+    file.write(reinterpret_cast<const char*>(&momentum), sizeof(double));
+    file.write(reinterpret_cast<const char*>(&patience_counter), sizeof(size_t));
+    file.write(reinterpret_cast<const char*>(&clip), sizeof(double));
+    file.write(reinterpret_cast<const char*>(&epoch), sizeof(size_t));
+
     for (const auto& layer : network.get_layers()) {
         write_layer(file, layer);
     }
@@ -187,7 +204,7 @@ void ModelIO::load_model(Network& network, const std::string& filepath)
     
     int version;
     file.read(reinterpret_cast<char*>(&version), sizeof(int));
-    if (version != MODEL_VERSION) throw std::runtime_error("Unsupported version");
+    if (version != MODEL_VERSION) throw std::runtime_error("Unsupported version: " + std::to_string(version) + ". Expected: " + std::to_string(MODEL_VERSION));
 
     int loss_int;
     size_t num_layers;
@@ -219,7 +236,21 @@ void ModelIO::load_model(Network& network, const std::string& filepath)
     network.set_patience(patience);
     network.set_factor(factor);
     network.set_min_lr(min_lr);
-    network.set_min_delta(min_delta);
+    // Default V1/V2 values not supported anymore since we enforce strict version matching for struct consistency
+    // But we still read the file linearly.
+
+    double momentum, clip;
+    size_t pc, epoch;
+
+    file.read(reinterpret_cast<char*>(&momentum), sizeof(double));
+    file.read(reinterpret_cast<char*>(&pc), sizeof(size_t));
+    file.read(reinterpret_cast<char*>(&clip), sizeof(double));
+    file.read(reinterpret_cast<char*>(&epoch), sizeof(size_t));
+
+    network.set_momentum(momentum);
+    network.set_patience_counter(pc);
+    network.set_clipping_threshold(clip);
+    network.set_current_epoch(epoch);
 
     if (is_empty) {
         for (size_t i = 0; i < num_layers; ++i) {

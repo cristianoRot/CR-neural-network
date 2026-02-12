@@ -7,7 +7,7 @@
 class ModelIO {
 public:
     static constexpr const char* MAGIC_HEADER = "CRNN_MODEL";
-    static constexpr int MODEL_VERSION = 1;
+    static constexpr int MODEL_VERSION = 3;
 
     static void save_model(const Network& network, const std::string& filepath);
     static void load_model(Network& network, const std::string& filepath);

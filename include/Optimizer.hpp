@@ -41,4 +41,13 @@ class Optimizer
         void set_factor(double f) { factor = f; }
         void set_min_lr(double mlr) { min_lr = mlr; }
         void set_min_delta(double md) { min_delta = md; }
+        
+        double get_momentum() const { return momentum; }
+        void set_momentum(double m) { momentum = m; }
+        
+        size_t get_patience_counter() const { return patience_counter; }
+        void set_patience_counter(size_t pc) { patience_counter = pc; }
+        
+        double get_clipping_threshold() const { return clipping_threshold; }
+        void set_clipping_threshold(double ct) { clipping_threshold = ct; }
 };

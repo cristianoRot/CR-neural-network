@@ -25,6 +25,7 @@ class Network
         Optimizer optimizer;
 
         size_t dataset_size = 0;
+        size_t current_epoch = 0;
 
         Metrics do_pass(Dataset& dataset, size_t batch_size);
 
@@ -69,4 +70,16 @@ class Network
         void set_factor(double f) { optimizer.set_factor(f); }
         void set_min_lr(double mlr) { optimizer.set_min_lr(mlr); }
         void set_min_delta(double md) { optimizer.set_min_delta(md); }
+
+        double get_momentum() const { return optimizer.get_momentum(); }
+        void set_momentum(double m) { optimizer.set_momentum(m); }
+
+        size_t get_patience_counter() const { return optimizer.get_patience_counter(); }
+        void set_patience_counter(size_t pc) { optimizer.set_patience_counter(pc); }
+
+        double get_clipping_threshold() const { return optimizer.get_clipping_threshold(); }
+        void set_clipping_threshold(double ct) { optimizer.set_clipping_threshold(ct); }
+
+        size_t get_current_epoch() const { return current_epoch; }
+        void set_current_epoch(size_t e) { current_epoch = e; }
 };

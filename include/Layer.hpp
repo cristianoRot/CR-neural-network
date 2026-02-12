@@ -79,6 +79,7 @@ class Layer
         size_t get_input_size() const { return input_size; }
         size_t get_output_size() const { return output_size; }
         Activation get_activation() const { return activation_type; }
+        double get_dropout_rate() const { return dropout_rate; }
         const Matrix& getW() const { return W; }
         const Matrix& getb() const { return b; }
         const Matrix& getvW() const { return vW; }

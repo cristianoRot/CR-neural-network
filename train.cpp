@@ -24,9 +24,8 @@ int main()
         Loss::CROSS_ENTROPY
     );
     
-    network.train(train_dataset, eval_dataset, 25, 64);
+    network.train(train_dataset, eval_dataset, 100, 64);
     network.save_best("models/mnist_model.crnn");
     
     return 0;
 }
-
